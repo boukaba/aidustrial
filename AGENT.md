@@ -1,8 +1,8 @@
 # AGENT.md
 
 Working notes for anyone (human or AI) picking this up: **why aidustrial
-exists**, **what has actually been built**, and **which mistakes were made along
-the way** so they don't get repeated.
+exists**, **what has actually been built**, **where everything lives**, and
+**which mistakes were made along the way** so they don't get repeated.
 
 This is not the architecture doc — that is [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 This is the *intent* and the *history*. Read `docs/DATA_PROVENANCE.md` before
@@ -43,7 +43,8 @@ are real.
 
 ```
 LAYER 4   HITL Command Center — Next.js           (:3010)
-          Agents at work · Farm Director approves/rejects · 60s tour
+          Mission-control shell · Agents at work · Farm Director
+          approves/rejects · 60s tour
 LAYER 3   Orchestrator — LangGraph state machine   (:8781)
           Routes context, owns the gate, does no work itself.
           sense → triage → wake → consult → gate → ┬→ execute
@@ -56,6 +57,69 @@ LAYER 1   Sensory Cortex — tools/sensors.py
 LAYER 0   Digital twin — Adrar site simulation
           Seeded with researched Baladna parameters.
 ```
+
+---
+
+## Where things live
+
+Backend (`agent/src/aidustrial/`, ~6.3k lines Python, 33 tests):
+
+```
+twin/           Digital twin of the Adrar site. constants.py tags every
+                number with provenance (SOURCED/DERIVED/ASSUMPTION/...).
+tools/sensors.py  The ONLY module that talks to the twin. Every agent call
+                goes through here. Swap in real telemetry = edit this file.
+agents/specialists.py  Vet, agronomist, maintenance, logistics. Each has a
+                run() that decides, and a watch() that reports live readings.
+agents/domains.py     Crop, calving, milking. Same shape.
+graph/orchestrator.py LangGraph state machine. ALL = 7 agents combined.
+server/app.py   FastAPI + WebSocket. snapshot() builds the whole view,
+                including _mesh() — the per-agent "what is it doing" payload.
+tests/          33 cases guarding the demo's defensibility (diurnal curve,
+                dry-vs-humid heat, agent idempotence, risk≠urgency).
+```
+
+Frontend (`dashboard/`, ~5.5k lines TS/TSX):
+
+```
+app/page.tsx        The shell. Nav routing, status header, DecisionStrip,
+                    and the view switch. Start here.
+app/globals.css     Design primitives: .card, .rail, .hot, .readout,
+                    drifting grid + scan line + vignette background,
+                    prefers-reduced-motion guard.
+tailwind.config.ts  Palette (ink.*), per-agent colors (colors.agent.*),
+                    animations (pulse/flash/scan/flow/sweep), glow shadows.
+lib/identity.ts     ★ Canonical agent registry: id, name, monogram, role,
+                    color hex, SVG glyph. One import, one source of truth.
+lib/language.ts     Every user-facing string. NAV, glossary, status text.
+                    Re-exports agentName/agentRole from identity.
+lib/explain.ts      Plain-language explanations of every technical reading.
+lib/types.ts        StreamMessage (incl. `mesh`), AGENT_COLOR.
+components/Icons.tsx    ★ All SVG glyphs: AgentGlyph, AgentBadge, NavGlyph,
+                    UI gear/triangle. Replaces every emoji.
+components/Live.tsx     ★ Liveness primitives: LiveNumber (flashes its own
+                    color on change), StatusChip, SevChip, ReadingRow.
+components/Agents.tsx   The money shot. SignalFlow diagram (7 agents → bus →
+                    OR), hero stats, AgentCard grid, MessageFeed.
+components/Control.tsx  useFarmStream hook, DecisionStrip (slim, sticky),
+                    DecisionGate (full, on Decisions screen).
+components/Home.tsx     Identity-colored status cards with flashing numbers.
+components/Sidebar.tsx  Glyph nav, lit active rail, LIVE indicator, sim clock.
+components/AreaDetail.tsx  Detail views. Wraps each area in its specialist's
+                    --agent CSS var for a lit hairline accent.
+components/Tour.tsx     60s modal tour, 7 stops, live numbers per stop.
+components/ControlPanel.tsx  Right-side technical panel (trace, findings,
+                    events, speed). The "details" disclosure.
+components/Panels.tsx   EventsPanel, FindingsPanel, TraceFeed used on System.
+components/Mesh.tsx     MeshBoard — the raw 7×N mesh grid on System.
+components/AreaNav.tsx  PlainNote, Term — plain-language helper widgets.
+components/Areas.tsx    ★ DEAD CODE — 310 lines, zero imports. The old
+                    crop/livestock/milk views, superseded by AreaDetail.
+                    Safe to delete.
+```
+
+★ = files you will touch most. `lib/identity.ts` and `components/Live.tsx`
+are the load-bearing pieces of the mission-control look.
 
 ---
 
@@ -72,6 +136,37 @@ LAYER 0   Digital twin — Adrar site simulation
 | 7 | `51956ac` | **Left sidebar** + a rewrite of every user-facing string for non-industrial readers |
 | 8 | `36104e8` | **Made the agents visible** — `watch()` on all 7, live readings, mesh feed; fixed a calls-count bug |
 | 9 | `a276f11` | 60-second tour as a **modal** with a close button, live numbers per stop |
+| 10 | `fbe0537` | This document |
+| 11 | `cd35380` | **Mission-control rebuild** — per-agent identity, SVG glyphs everywhere, flash-on-change numbers, signal-flow diagram, slim decision strip |
+
+---
+
+## The design system, and why
+
+The first five UI commits produced a competent but not astonishing dashboard:
+a grid of identical dark cards with emoji icons, where genuinely live data
+looked like a static screenshot. A judge saw fixed numbers and reasonably
+concluded it was a mock. The agents are the product; the interface was failing
+to show them working.
+
+The rebuild (`cd35380`) fixed four things, in order of damage:
+
+1. **The decision gate rendered at the top of EVERY view**, pushing ~500px of
+   repeated card above whatever you had navigated to see. Now it is a slim
+   sticky `DecisionStrip`; the full gate lives on the Decisions screen only.
+2. **All seven agents looked identical.** No colour, no glyph, no identity.
+   Now each owns a hue from `colors.agent.*`, a monogram badge, and a
+   stroked SVG glyph. Seven simultaneous agents read as seven distinct signals.
+3. **Nothing signalled change.** Numbers updated silently over the socket, so
+   a live feed read as a screenshot. Now `LiveNumber` flashes in its own
+   colour the instant the value changes. This was the single most important
+   fix — "watching an agent work" was invisible before it.
+4. **Emoji icons** read as a 2015 emoji picker on top of a serious interface.
+   All replaced with a consistent stroked SVG system in `components/Icons.tsx`.
+
+The ambient motion (drifting field grid, scan line, vignette) exists so the
+page reads as an *instrumented room* rather than a flat sheet. It is subtle on
+purpose and respects `prefers-reduced-motion`.
 
 ---
 
@@ -131,7 +226,8 @@ knows it was considered, not stumbled into.
   purpose). It stuffs an instantaneous per-hour rate into an annual-budget
   comparison. Fixing it changes scenario thresholds and the test suite, so we
   relabelled the reading honestly instead of quietly changing the model. If you
-  touch it, fix the model properly and update the tests.
+  touch it, fix the model properly and update the tests. The relabelled row is
+  "Where the water comes from / fossil, not rain".
 - **The tour used to hijack the background nav.** Inline, advancing a stop
   silently switched the page behind it. As a modal that became invisible, so we
   added an explicit **"Take me there →"** button instead.
@@ -139,35 +235,64 @@ knows it was considered, not stumbled into.
   (inside a docstring) and broke the parser. Use AST line numbers
   (`ast.parse` → `ClassDef`/`FunctionDef.end_lineno`) for any structural edit to
   a Python file in this repo. Don't regex-hack source files.
+- **A repeated decision gate was eating 500px of every view.** It was rendered
+  unconditionally at the top of the shell, so navigating to a detail view
+  pushed the content you wanted below the fold. Now `DecisionStrip` is slim,
+  sticky, and only rendered when `pending` and `nav !== "decisions"`; the
+  status banner is also dropped while pending so the same fact isn't stated
+  twice. If you add a new view, check it doesn't reintroduce this.
+- **The agronomist's water row mixed instantaneous and annual units.** Rather
+  than silently change the model, we relabelled it. See the modelling-bug note
+  above — same principle: honest label beats quiet fix.
 
 ---
 
 ## How to run it
 
-```bash
-# 1. agent core — LangGraph + FastAPI on :8781
-cd agent
-uv run uvicorn aidustrial.server.app:app --app-dir src --port 8781
+Backend on `:8781` (needs `langgraph`, `langchain-core`, `fastapi`, `uvicorn`,
+`websockets`; use `--no-project --with ...` if they are not in your env):
 
-# 2. dashboard — Next.js on :3010
+```bash
+cd agent
+uv run --no-project --with "langgraph>=0.2" --with "langchain-core>=0.3" \
+  --with fastapi --with uvicorn --with websockets \
+  python -m uvicorn aidustrial.server.app:app --app-dir src --port 8781
+```
+
+Frontend on `:3010` (production start; `pnpm install` first if needed):
+
+```bash
 cd dashboard
-pnpm install && pnpm exec next dev -p 3010
+pnpm exec next start -p 3010
+# or, while editing:
+pnpm exec next dev -p 3010
 ```
 
 Open <http://localhost:3010>. The session opens at **Day 3, midday** — the pump
 failure has just happened and the heatwave starts tomorrow, so a five-minute
 judge watch lands inside the scenario.
 
-The backend needs `langgraph`, `langchain-core`, `fastapi`, `uvicorn`. Run it
-with `uv run --with ... uvicorn ...` if they are not in your environment.
+Useful knobs on the page: **Speed** (4× / 14× / 40×) and the **Panel** button
+(right-side technical disclosure). The **Agents at work** screen is the money
+shot — the signal-flow diagram lights a line only when that agent actually
+spoke this round.
 
 ## How to verify it
 
 ```bash
 cd agent
-uv run pytest tests/ -q      # 33 tests
-uv run ruff check src/       # lint
-cd ../dashboard && pnpm exec next build   # typecheck + prod build
+uv run --no-project --with "langgraph>=0.2" --with "langchain-core>=0.3" \
+  --with pytest python -m pytest tests/ -q          # expect 33 passed
+uv run --no-project --with ruff ruff check src/     # expect clean
+cd ../dashboard
+pnpm exec next build                                 # expect "Compiled successfully"
+```
+
+Both services up:
+
+```bash
+curl -s -o /dev/null -w "frontend %{http_code}\n" http://localhost:3010
+curl -s -o /dev/null -w "backend %{http_code}\n"  http://localhost:8781/api/health
 ```
 
 The 33 tests guard the properties that make the demo defensible rather than
@@ -192,16 +317,57 @@ satisfied action, and that risk and urgency stay independent axes.
 - **Agents report live readings via `watch()`.** If you add an agent, give it a
   `watch()` returning `[{label, value, unit, status}]` so the Agents-at-work
   view has something true to show.
+- **Agent identity is centralised in `lib/identity.ts`.** Never hardcode a
+  name, colour, monogram or glyph elsewhere. Add the agent there, import
+  `agent(id)` / `agentName(id)` / `agentHex(id)`. `lib/language.ts` re-exports
+  the name helpers for convenience.
+- **No emoji in the UI.** Use the stroked SVG glyphs in `components/Icons.tsx`
+  (`AgentGlyph`, `NavGlyph`, `UiGlyph`). If you need a new symbol, add a path
+  to that file so the stroke weight stays consistent.
+- **Live values use `LiveNumber`** from `components/Live.tsx`, not raw text.
+  If a number changes and doesn't flash, it looks static to a judge.
+- **Thread identity through a CSS variable.** Views set `--agent` to the
+  specialist's hex and use the `.rail` / `.hot` / `.readout` classes from
+  `globals.css`, so accents follow automatically.
+- **Respect `prefers-reduced-motion`.** All ambient motion is already guarded
+  in `globals.css`; keep new animations inside that guard.
 - **Don't fake "live".** If a number isn't streaming from the twin, label it.
 
 ---
 
-## Honest status / what's next
+## Honest status / what's left
 
-- The demo is **judge-ready** for the pitch: left sidebar, simplified
-  home, visible agents, modal tour, working HITL gate, screenshot-friendly.
-- Still worth doing: surface **per-agent "thinking" traces** on the Agents view
-  (the tool name is shown; a short natural-language rationale per call would
-  strengthen "thinking"); possibly a real photo/thumbnail per agent for warmth.
-- **The Adrar twin is simulated.** The moment real telemetry exists, point
-  `sensors.py` at it and the rest of the stack is unchanged.
+**Judge-ready** for the pitch: mission-control shell, seven visibly distinct
+agents with live flashing readings, signal-flow diagram, working HITL gate,
+modal tour, plain-language layer throughout, screenshot-friendly.
+
+Known loose ends, in rough priority order:
+
+1. **`components/Areas.tsx` is dead code** (310 lines, zero imports). The old
+   crop/livestock/milk views were superseded by `AreaDetail.tsx`. Delete it.
+2. **The detail views (Cow food / The herd / The milk / Water & machines) are
+   still list-shaped.** They inherit the identity hairline but don't have the
+   live flashing treatment the Agents view has. Giving each a per-field live
+   panel with `LiveNumber` + `StatusChip` is the obvious next step.
+3. **Per-agent "thinking" traces.** The tool name is shown; a short
+   natural-language rationale per call would strengthen "thinking".
+4. **The README is stale** — it still says "four specialist agents" and "23
+   tests". Actual: seven agents, 33 tests. Rewrite it to match this file.
+5. **No real photo/thumbnail per agent** — optional warmth, low priority.
+6. **The Adrar twin is simulated.** The moment real telemetry exists, point
+   `sensors.py` at it and the rest of the stack is unchanged.
+
+---
+
+## If you are resuming in a fresh session
+
+1. Read this file top to bottom (~10 min). It is the whole history.
+2. Start both services with the commands above and open
+   <http://localhost:3010>. Click through every nav item.
+3. The most useful screens to understand the current state: **Agents at work**
+   (the design system at full strength) and **Cow food** (the weakest view —
+   that's the gap to close).
+4. Check the loose ends list above and pick one. Item 1 (delete dead
+   `Areas.tsx`) is a two-minute win. Item 2 is the main remaining work.
+5. Before you finish, run the three verification commands and commit with a
+   message that says *why*, not just *what*.
