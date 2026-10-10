@@ -275,15 +275,15 @@ export const healthColor = (h: string) =>
       : "text-crit-400";
 
 export const AGENT_COLOR: Record<string, string> = {
-  orchestrator: "text-sky-300",
+  orchestrator: "text-slate-200",
   crop: "text-lime-300",
   crop_irrigation: "text-lime-300",
-  agronomist: "text-teal-300",
-  calving: "text-emerald-300",
-  veterinarian: "text-emerald-400",
+  agronomist: "text-cyan-300",
+  calving: "text-purple-300",
+  veterinarian: "text-emerald-300",
   maintenance: "text-amber-300",
-  logistics: "text-violet-300",
-  milking: "text-cyan-300",
+  logistics: "text-rose-300",
+  milking: "text-sky-300",
   human: "text-fuchsia-300",
   system: "text-crit-400",
 };

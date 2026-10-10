@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Packet } from "@/lib/types";
-import { AGENT_NAME, NavId } from "@/lib/language";
+import { agentName } from "@/lib/identity";
+import { NavId } from "@/lib/language";
 
 /**
  * The 60-second tour, as a modal.
@@ -120,7 +121,7 @@ const STOPS: Stop[] = [
       return [
         { label: "Messages on the board", value: n(p.board.length) },
         { label: "Still unanswered", value: n(open.length), tone: open.length ? "act" : "ok" },
-        { label: "Specialists talking", value: senders.length ? senders.map((s) => AGENT_NAME[s] ?? s).join(", ") : "first round starting" },
+        { label: "Specialists talking", value: senders.length ? senders.map((s) => agentName(s)).join(", ") : "first round starting" },
       ];
     },
   },
@@ -194,9 +195,15 @@ export function GuidedTour({
         onClick={() => setOpen(true)}
         className="group flex items-center gap-2.5 rounded-lg border border-sig-500/40 bg-sig-500/10 px-4 py-2.5 text-left transition hover:bg-sig-500/20"
       >
-        <span className="text-lg" aria-hidden>
-          👋
-        </span>
+        <span
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-sig-500/40 bg-sig-500/12"
+        aria-hidden
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="#5eead4" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+          <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+        </svg>
+      </span>
         <span>
           <span className="block text-xs font-semibold text-sig-400">
             New here? Take the 60-second tour

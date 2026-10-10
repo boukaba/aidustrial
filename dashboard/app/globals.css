@@ -2,33 +2,184 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+  --glow: rgba(45, 212, 191, 0.35);
+  --ring: rgba(45, 212, 191, 0.5);
+  --flash: #99f6e4;
+}
+
+html,
+body {
+  height: 100%;
+}
 
 body {
-  @apply bg-ink-950 text-slate-200 antialiased;
+  @apply bg-ink-1000 text-slate-200 antialiased;
+  font-feature-settings: "tnum" 1, "cv05" 1;
+  background-color: #04060a;
   background-image:
-    radial-gradient(900px 500px at 12% -8%, rgba(45, 212, 191, 0.07), transparent 60%),
-    radial-gradient(700px 400px at 92% 0%, rgba(248, 113, 113, 0.05), transparent 60%);
+    /* the slow drifting field grid — the "this place is instrumented" cue */
+    linear-gradient(rgba(56, 189, 248, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56, 189, 248, 0.028) 1px, transparent 1px),
+    /* two deep colour pools so the ground is never flat */
+    radial-gradient(1100px 620px at 10% -12%, rgba(45, 212, 191, 0.1), transparent 62%),
+    radial-gradient(900px 520px at 96% -4%, rgba(251, 113, 133, 0.07), transparent 60%),
+    radial-gradient(800px 600px at 50% 120%, rgba(56, 189, 248, 0.05), transparent 60%);
+  background-size:
+    40px 40px,
+    40px 40px,
+    auto,
+    auto,
+    auto;
+  animation: drift 60s linear infinite;
+}
+
+/* ambient scan line, purely decorative, sits behind content */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(45, 212, 191, 0.022) 46%,
+    rgba(45, 212, 191, 0.05) 50%,
+    rgba(45, 212, 191, 0.022) 54%,
+    transparent 100%
+  );
+  height: 260px;
+  animation: scan 9s linear infinite;
+  opacity: 0.6;
+}
+
+/* faint vignette so panels sit in a lit room rather than on a sticker sheet */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+@layer base {
+  /* numbers should never reflow the layout when they change */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
 }
 
 @layer components {
   .card {
-    @apply rounded-lg border border-ink-700 bg-ink-900/70 backdrop-blur-sm;
+    @apply rounded-xl border border-ink-700/80 bg-ink-900/75 shadow-panel backdrop-blur-md;
+    /* a one-pixel lit top edge, like a bezel */
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.035) inset,
+      0 24px 48px -28px rgba(0, 0, 0, 0.95);
   }
+
   .label {
-    @apply text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500;
+    @apply text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500;
   }
+
   .metric {
-    @apply font-mono tabular-nums;
+    @apply font-mono tabular tracking-data;
   }
+
   .pill {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider;
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] text-[10px] font-semibold uppercase tracking-[0.1em];
+  }
+
+  /* a panel with a coloured identity rail down the left edge */
+  .rail {
+    @apply relative overflow-hidden;
+  }
+  .rail::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 2px;
+    background: linear-gradient(
+      to bottom,
+      var(--agent) 0%,
+      color-mix(in srgb, var(--agent) 30%, transparent) 100%
+    );
+  }
+
+  /* thin animated top border for "this panel is currently receiving data" */
+  .hot {
+    @apply relative;
+  }
+  .hot::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--agent, #2dd4bf),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: hot-sweep 2.8s linear infinite;
+    opacity: 0.85;
+  }
+
+  /* text that reads as a live machine readout */
+  .readout {
+    @apply font-mono tabular text-[13px] font-semibold tracking-data text-slate-100;
   }
 }
 
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.45); }
-  70% { box-shadow: 0 0 0 10px rgba(45, 212, 191, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0); }
+/* the animated hot-edge needs its own keyframe (defined outside tailwind so it
+   can reuse the custom property cleanly) */
+@keyframes hot-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
-.gate-live { animation: pulse-ring 1.8s infinite; }
+
+/* scrollbars: thin, dark, no white rails */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #232f3d transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: #232f3d;
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #354353;
+}
+
+/* focus ring that matches the palette instead of the browser default */
+:focus-visible {
+  outline: 2px solid rgba(45, 212, 191, 0.7);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

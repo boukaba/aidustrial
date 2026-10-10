@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { AgentsLive } from "@/components/Agents";
-import { DecisionGate, useFarmStream } from "@/components/Control";
+import { DecisionGate, DecisionStrip, useFarmStream } from "@/components/Control";
+import { NavGlyph, UiGlyph, AgentBadge } from "@/components/Icons";
 import { ControlPanel } from "@/components/ControlPanel";
 import { AreaDetail } from "@/components/AreaDetail";
 import {
@@ -16,6 +17,7 @@ import {
 import { EventsPanel, FindingsPanel, TraceFeed } from "@/components/Panels";
 import { Sidebar } from "@/components/Sidebar";
 import { GuidedTour } from "@/components/Tour";
+import { SPECIALISTS, agent } from "@/lib/identity";
 import { NavId, statusColour } from "@/lib/language";
 
 export default function Command() {
@@ -24,6 +26,16 @@ export default function Command() {
   const [nav, setNav] = useState<NavId>("home");
   const [rail, setRail] = useState(true);
   const [panel, setPanel] = useState(false);
+  const [deciding, setDeciding] = useState(false);
+
+  const decideNow = async (approved: boolean, note = "") => {
+    setDeciding(true);
+    try {
+      await decide(approved, note);
+    } finally {
+      setDeciding(false);
+    }
+  };
 
   if (!data) {
     return (
@@ -72,6 +84,8 @@ export default function Command() {
         open={rail}
         onToggle={() => setRail((v) => !v)}
         badge={pending ? 1 : 0}
+        live={connected}
+        simTime={`${summary.sim_time ?? ""}`}
       />
 
       <main className="mx-auto max-w-[1080px] p-5 lg:p-7">
@@ -115,27 +129,31 @@ export default function Command() {
                     : "border-ink-700 text-slate-400 hover:text-slate-200"
                 }`}
               >
-                ⚙ Panel
+                <UiGlyph name="gear" className="mr-1 inline h-3 w-3" />
+                Panel
               </button>
             </div>
           </div>
 
-          <div className={`rounded-lg border p-4 ${statusColour(status)}`}>
-            <p className="text-lg font-medium leading-snug">{line.text}</p>
-            <p className="mt-1 text-sm opacity-80">{line.sub}</p>
-          </div>
+          {/* The status line is dropped while a decision is pending — the
+              DecisionStrip below already says so, and stating it twice just
+              pushed the view down another 80px. */}
+          {!pending && (
+            <div className={`rounded-lg border p-4 ${statusColour(status)}`}>
+              <p className="text-lg font-medium leading-snug">{line.text}</p>
+              <p className="mt-1 text-sm opacity-80">{line.sub}</p>
+            </div>
+          )}
         </header>
 
-        {/* ---------------------------------------------------- decision */}
+        {/* ----------------------------------------- decision (slim) */}
         {pending && nav !== "decisions" && (
-          <div className="mb-5">
-            <DecisionGate
-              action={pending.action}
-              queued={pending.queued}
-              simTime={pending.sim_time}
-              onDecide={decide}
-            />
-          </div>
+          <DecisionStrip
+            action={pending.action}
+            onDecide={decideNow}
+            onOpen={() => setNav("decisions")}
+            busy={deciding}
+          />
         )}
 
         {/* ------------------------------------------------------- HOME */}
@@ -238,23 +256,22 @@ export default function Command() {
                 important enough, does the farm stop and wait for you.
               </p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {[
-                  ["🌾", "Crop", "Fields, irrigation, growing feed"],
-                  ["💧", "Irrigation", "Water supply and pivots"],
-                  ["🐄", "Herd health", "Cows, heat, sickness"],
-                  ["🍼", "Youngstock", "Calves and breeding"],
-                  ["🥛", "Milking", "Parlour, cooling, quality"],
-                  ["🔧", "Machinery", "Pumps, conveyors, repairs"],
-                  ["🚚", "Supplies", "Feed and transport"],
-                ].map(([i, n, d]) => (
-                  <div key={n} className="rounded border border-ink-800 bg-ink-950/40 p-2.5">
-                    <div className="flex items-center gap-2">
-                      <span aria-hidden>{i}</span>
-                      <span className="text-xs font-medium text-slate-200">{n}</span>
+                {SPECIALISTS.map((id) => {
+                  const a = agent(id);
+                  return (
+                    <div
+                      key={id}
+                      className="rail flex items-start gap-2.5 rounded-lg border border-white/[0.06] bg-ink-950/50 p-2.5"
+                      style={{ ["--agent" as string]: a.hex }}
+                    >
+                      <AgentBadge id={id} size="md" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-200">{a.name}</p>
+                        <p className="mt-0.5 text-[10px] leading-snug text-slate-500">{a.role}</p>
+                      </div>
                     </div>
-                    <p className="mt-0.5 text-[10px] text-slate-500">{d}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

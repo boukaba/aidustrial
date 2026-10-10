@@ -1,6 +1,7 @@
 "use client";
 
 import type { Packet } from "@/lib/types";
+import { agent } from "@/lib/identity";
 import { AreaId, GLOSSARY, LEVEL_LABEL, LEVEL_STYLE, explainAquifer, explainBulkTemp, explainCropHealth, explainFeed, explainHeiferWeight, explainHeatLoad, explainMisting, explainParlour, explainRumination, explainScours, explainScc, explainSoilMoisture } from "@/lib/explain";
 import { PlainNote, Term } from "@/components/AreaNav";
 import { MeshBoard } from "@/components/Mesh";
@@ -28,10 +29,30 @@ function Row({ label, value, sub }: { label: string; value: React.ReactNode; sub
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="card p-4">
-      <h3 className="mb-3 text-sm font-semibold text-slate-200">
+    <section
+      className="card relative overflow-hidden p-4"
+      style={{ ["--accent" as string]: "var(--agent, #2dd4bf)" }}
+    >
+      {/* one lit hairline, so the panel reads as part of the live system */}
+      <span
+        className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-60"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, color-mix(in srgb, var(--agent, #2dd4bf) 70%, transparent), transparent)",
+        }}
+        aria-hidden
+      />
+      <h3 className="mb-3 text-sm font-semibold text-slate-100">
         {title}
         {hint && <span className="ml-2 text-[10px] font-normal text-slate-500">{hint}</span>}
       </h3>
@@ -408,12 +429,28 @@ function InfraDetail({ p }: { p: Packet }) {
 
 /* ---------------------------------------------------------------- ROUTER */
 
+const AREA_AGENT: Record<string, string> = {
+  crop: "crop",
+  livestock: "calving",
+  milk: "milking",
+  infrastructure: "maintenance",
+};
+
 export function AreaDetail({ p, area }: { p: Packet; area: AreaId }) {
-  if (area === "crop") return <CropDetail p={p} />;
-  if (area === "livestock") return <LivestockDetail p={p} />;
-  if (area === "milk") return <MilkDetail p={p} />;
-  if (area === "infrastructure") return <InfraDetail p={p} />;
-  return (
+  // Each production area inherits the identity colour of the specialist that
+  // owns it, so the detail layer reads as the same system as the agents view.
+  const hex = agent(AREA_AGENT[area] ?? "orchestrator").hex;
+  const wrap = (node: React.ReactNode) => (
+    <div className="animate-fade-up" style={{ ["--agent" as string]: hex }}>
+      {node}
+    </div>
+  );
+
+  if (area === "crop") return wrap(<CropDetail p={p} />);
+  if (area === "livestock") return wrap(<LivestockDetail p={p} />);
+  if (area === "milk") return wrap(<MilkDetail p={p} />);
+  if (area === "infrastructure") return wrap(<InfraDetail p={p} />);
+  return wrap(
     <div className="space-y-4">
       <PlainNote
         plain={{
@@ -424,6 +461,6 @@ export function AreaDetail({ p, area }: { p: Packet; area: AreaId }) {
         }}
       />
       <MeshBoard p={p} />
-    </div>
+    </div>,
   );
 }

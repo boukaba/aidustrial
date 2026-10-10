@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { agent } from "@/lib/identity";
 import type { StreamMessage, ActionPayload } from "@/lib/types";
 
 const API =
@@ -136,6 +137,87 @@ export function EvidenceBlock({ evidence }: { evidence: Record<string, unknown> 
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * The slim persistent decision strip.
+ *
+ * The full gate used to render at the top of EVERY view, pushing ~500px of
+ * repeated card above the thing you had actually navigated to see. This keeps
+ * the urgency (the farm genuinely is paused) while giving the view back its
+ * screen. The full gate lives on the Decisions screen.
+ */
+export function DecisionStrip({
+  action,
+  onDecide,
+  onOpen,
+  busy,
+}: {
+  action: ActionPayload;
+  onDecide: (approved: boolean, note: string) => Promise<void>;
+  onOpen: () => void;
+  busy?: boolean;
+}) {
+  const who = agent(action.requested_by);
+  return (
+    <div className="sticky top-0 z-30 -mx-1 mb-4 px-1 pt-1">
+      <div
+        className="relative flex flex-wrap items-center gap-3 overflow-hidden rounded-xl border border-fuchsia-500/40 bg-ink-900/92 px-3.5 py-2.5 backdrop-blur-md"
+        style={{ boxShadow: "0 0 40px -14px rgba(232,121,249,0.45), 0 18px 40px -28px #000" }}
+      >
+        {/* sweeping urgency highlight */}
+        <span
+          className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 animate-sweep bg-gradient-to-r from-transparent via-fuchsia-400/12 to-transparent"
+          aria-hidden
+        />
+
+        <span className="relative flex items-center gap-1.5 rounded-full border border-fuchsia-500/50 bg-fuchsia-500/15 px-2 py-[3px]">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-fuchsia-400 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 animate-pulse-dot rounded-full bg-fuchsia-400" />
+          </span>
+          <span className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-fuchsia-300">
+            paused
+          </span>
+        </span>
+
+        <div className="relative min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold leading-tight text-slate-50">
+            {plainHeadline(action)}
+          </p>
+          <p className="truncate text-[10.5px] text-slate-500">
+            suggested by the {who.name.toLowerCase()} · needs your decision
+          </p>
+        </div>
+
+        <div className="relative flex shrink-0 items-center gap-1.5">
+          <button
+            disabled={busy}
+            onClick={() => onDecide(true, "")}
+            className="rounded-lg bg-sig-600 px-3.5 py-1.5 text-[11.5px] font-semibold text-ink-950 transition hover:bg-sig-500 disabled:opacity-50"
+          >
+            Approve
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => onDecide(false, "")}
+            className="rounded-lg border border-crit-500/50 px-3 py-1.5 text-[11.5px] font-semibold text-crit-400 transition hover:bg-crit-500/10 disabled:opacity-50"
+          >
+            Reject
+          </button>
+          <button
+            onClick={onOpen}
+            className="flex items-center gap-1 rounded-lg border border-ink-600 px-2.5 py-1.5 text-[11.5px] text-slate-400 transition hover:border-fuchsia-500/50 hover:text-fuchsia-300"
+          >
+            Details
+            <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

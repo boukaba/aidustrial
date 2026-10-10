@@ -23,30 +23,9 @@ export const NAV = [
 
 export type NavId = (typeof NAV)[number]["id"];
 
-/** Agent id -> the name a non-expert would use, and what it does all day. */
-export const AGENT_NAME: Record<string, string> = {
-  crop: "Field agent",
-  agronomist: "Field specialist",
-  veterinarian: "Cow doctor",
-  calving: "Calving agent",
-  milking: "Milking agent",
-  maintenance: "Machine engineer",
-  logistics: "Supply agent",
-  orchestrator: "The coordinator",
-  human: "You",
-  system: "Farm rules",
-};
-
-export const AGENT_ROLE: Record<string, string> = {
-  crop: "watches the fields and what is growing",
-  agronomist: "decides how much water the farm can afford",
-  veterinarian: "watches cow health, heat and rumination",
-  calving: "keeps the next generation of cows coming",
-  milking: "runs the milking parlour and milk quality",
-  maintenance: "keeps pivots, chillers and pumps alive",
-  logistics: "brings in feed, animals and parts",
-  orchestrator: "collects every specialist's input and decides what you see",
-};
+// Agent names/roles now live in lib/identity.ts alongside each agent's colour,
+// monogram and glyph. Re-exported here so existing imports keep resolving.
+export { agentName as AGENT_NAME, agentRole as AGENT_ROLE } from "./identity";
 
 /** Industry term -> what it actually means, for the "details" disclosures. */
 export const TERM: Record<string, string> = {
