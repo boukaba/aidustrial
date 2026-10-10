@@ -79,6 +79,11 @@ class Pivot:
     motor_hours: float = 0.0
     nozzles_blocked: int = 0
     applied_m3_ha: float = 0.0
+    #: Irrigation scheduling. A centre pivot does not run continuously -- it
+    #: applies its depth of water over a set window every few days. Running
+    #: 24/7 saturated every field within a tick.
+    run_hours_per_day: int = 7
+    run_day_interval: int = 3
 
     @property
     def name(self) -> str:
@@ -95,6 +100,12 @@ class Pivot:
 
     def needs_water(self) -> bool:
         return self.soil_moisture_pct < C.SOIL_MOISTURE_OPTIMAL_PCT
+
+    def scheduled_on(self, day: int, hour: float) -> bool:
+        """Should this pivot be running at this moment, ignoring operator state."""
+        if day % max(1, self.run_day_interval) != 0:
+            return False
+        return hour < float(self.run_hours_per_day)
 
 
 @dataclass
@@ -123,7 +134,12 @@ class EnvironmentState:
             Pivot(
                 pid=i + 1,
                 field_ha=C.PIVOT_AREA_HA,
-                soil_moisture_pct=rng.uniform(14.0, 27.0),
+                soil_moisture_pct=rng.uniform(19.0, 26.0),
+                # An operating farm irrigates on a schedule. Starting idle dried
+                # every field to wilting before any agent woke, which made the
+                # demo open on a dead crop instead of a working one.
+                run_hours_per_day=rng.choice([6, 7, 8]),
+                run_day_interval=rng.choice([2, 3, 4]),
             )
             for i in range(C.PIVOTS)
         ]
@@ -162,6 +178,7 @@ class EnvironmentState:
         evap_mm *= (1.0 - 0.40 * self.crop_cover)
 
         for p in self.pivots:
+            p.running = p.scheduled_on(self.clock.day, self.clock.hour)
             if p.running:
                 applied_mm = 9.0 * (self.clock.minutes_per_tick / 60.0)
                 soil_gain = applied_mm * 1.35  # sandy soil, low runoff

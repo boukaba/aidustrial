@@ -10,8 +10,18 @@ export function useFarmStream(threadId = "demo", speed = 14) {
   const [data, setData] = useState<StreamMessage | null>(null);
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const [speedState, setSpeedState] = useState(speed);
   const retry = useRef(0);
+
+  // A judge staring at a spinner for 30 seconds with no explanation is a
+  // failed demo. Show elapsed time and an explicit manual retry.
+  useEffect(() => {
+    if (data || error) return;
+    const t = setInterval(() => setElapsed((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [data, error]);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -26,16 +36,18 @@ export function useFarmStream(threadId = "demo", speed = 14) {
       ws.onopen = () => {
         setConnected(true);
         setError(null);
+        setAttempt(0);
         retry.current = 0;
       };
       ws.onmessage = (ev) => {
         try {
           setData(JSON.parse(ev.data) as StreamMessage);
+          setConnected(true);
         } catch {
           /* ignore malformed frame */
         }
       };
-      ws.onerror = () => setError("stream error");
+      ws.onerror = () => setError("could not reach the agent service");
       ws.onclose = () => {
         setConnected(false);
         if (closed) return;
@@ -50,7 +62,7 @@ export function useFarmStream(threadId = "demo", speed = 14) {
       clearTimeout(timer);
       ws?.close();
     };
-  }, [threadId, speedState]);
+  }, [threadId, speedState, attempt]);
 
   const decide = async (approved: boolean, note = "") => {
     await fetch(`${API}/api/decide/${threadId}`, {
@@ -69,7 +81,12 @@ export function useFarmStream(threadId = "demo", speed = 14) {
     });
   };
 
-  return { data, connected, error, decide, setSpeed, speed: speedState };
+  const retryNow = () => {
+    setError(null);
+    setAttempt((n) => n + 1);
+  };
+
+  return { data, connected, error, elapsed, retryNow, decide, setSpeed, speed: speedState };
 }
 
 export function ScoreBar({
@@ -153,17 +170,34 @@ export function DecisionGate({
         <span className="ml-auto metric text-xs text-slate-500">{simTime}</span>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="metric text-xl font-semibold text-slate-100">{action.action}</h2>
-        <span className="metric text-sm text-slate-400">{action.target}</span>
-        <span className="pill border-slate-600/50 bg-slate-700/30 text-slate-300">
-          by {action.requested_by}
-        </span>
-        <span className="pill border-slate-600/50 bg-slate-700/30 text-slate-300">
-          {action.urgency_band}
-        </span>
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold leading-snug text-slate-50">
+          {plainHeadline(action)}
+        </h2>
+        <p className="mt-0.5 text-[11px] text-slate-500">
+          asked by the <span className="text-slate-400">{action.requested_by.replace("_", " ")}</span>{" "}
+          specialist &middot; {action.target}
+        </p>
       </div>
 
+      <div className="mb-4 grid gap-2 sm:grid-cols-2">
+        <div className="rounded border border-sig-500/25 bg-sig-500/5 p-3">
+          <div className="label mb-1 text-sig-400">If you approve</div>
+          <p className="text-xs leading-relaxed text-slate-300">{plainIf(action)}</p>
+        </div>
+        <div className="rounded border border-warn-500/25 bg-warn-500/5 p-3">
+          <div className="label mb-1 text-warn-400">If you do nothing</div>
+          <p className="text-xs leading-relaxed text-slate-300">
+            {action.cost_of_inaction || plainDoNothing(action)}
+          </p>
+        </div>
+      </div>
+
+      <details className="mb-4">
+        <summary className="cursor-pointer select-none text-[11px] font-semibold text-slate-400 hover:text-slate-200">
+          Show technical detail and evidence
+        </summary>
+        <div className="mt-3 rounded border border-ink-800 bg-ink-950/30 p-3">
       <div className="grid gap-5 md:grid-cols-[1fr_200px]">
         <div>
           <p className="mb-3 text-sm leading-relaxed text-slate-300">{action.rationale}</p>
@@ -195,18 +229,9 @@ export function DecisionGate({
 
           <EvidenceBlock evidence={action.evidence} />
         </div>
-
-        <div className="space-y-3.5">
-          <ScoreBar score={action.urgency_score} label="Urgency" tone="crit" />
-          <ScoreBar score={action.risk_score} label="Risk" tone="warn" />
-          <div className="rounded border border-ink-700 bg-ink-950/60 p-2.5">
-            <div className="label mb-1">Reversible</div>
-            <div className="metric text-xs text-slate-300">
-              {action.reversible ? "Yes — reversible" : "No — one-way"}
-            </div>
-          </div>
         </div>
-      </div>
+        </div>
+      </details>
 
       <input
         value={note}
@@ -238,4 +263,68 @@ export function DecisionGate({
       </div>
     </section>
   );
+}
+
+/* --------------------------------------------------------- plain language */
+
+const HEADLINE: Record<string, string> = {
+  enable_misters: "Start cooling for some of the cow barns",
+  stop_misters: "Stop the barn cooling",
+  start_pivot: "Turn on irrigation for some fields",
+  stop_pivot: "Stop irrigation on some fields",
+  shed_pivot: "Reduce the irrigation programme",
+  transfer_water: "Move water from one field to another",
+  repair_pivot: "Send someone to fix an irrigation pivot",
+  shed_load: "Reduce the workload on barns that cannot be cooled",
+  restart_inlet: "Restart a feed conveyor that has stopped",
+  reroute_convoy: "Expedite a feed or milk delivery",
+  quarantine_group: "Move a group of animals into isolation",
+  harvest_field: "Cut and harvest a forage field",
+  boost_heifer_rations: "Improve the feed given to the heifers",
+  isolate_calves: "Move sick calves into isolation pens",
+  service_parlour: "Service the milking equipment",
+  clean_condenser: "Clean the milk cooler",
+  cull_chronic_mastitis: "Cull cows with persistent mastitis",
+  halt_intake: "Stop milk intake at the powder plant",
+};
+
+function plainHeadline(a: ActionPayload): string {
+  if (HEADLINE[a.action]) return HEADLINE[a.action];
+  const n = a.target ? a.target.split(",").length : 0;
+  return `${a.action.replace(/_/g, " ")}${n > 1 ? ` (${n} items)` : ""}`;
+}
+
+function plainIf(a: ActionPayload): string {
+  switch (a.action) {
+    case "enable_misters":
+      return "Cooling starts in the barns most under heat stress. Those cows should eat and milk normally again within hours.";
+    case "start_pivot":
+      return "The listed fields start receiving water and the crop resumes growing. Reversible — the pivots can be stopped again.";
+    case "shed_pivot":
+      return "Some fields stop irrigating to bring yearly water use back inside the sustainable limit. Those fields lose some growth.";
+    case "repair_pivot":
+      return "A technician clears the blocked nozzles and services the bearings. The field waters evenly again.";
+    case "shed_load":
+      return "Barns with no cooling take less throughput, protecting animals from a workload they cannot handle in this heat.";
+    case "cull_chronic_mastitis":
+      return "Chronically infected cows leave the herd. Milk quality improves; the site loses some cattle.";
+    case "clean_condenser":
+      return "The cooler is cleaned and pulls the tank back down to temperature. Milk that has warmed is saved.";
+    case "isolate_calves":
+      return "Affected calves move to separate pens and are treated. Some will still die, but fewer will.";
+    case "harvest_field":
+      return "Forage is cut and stored while at peak quality. Left standing, it loses both mass and digestibility.";
+    case "reroute_convoy":
+      return "A delivery is expedited, at a premium, to cover a feed or cold-chain shortfall.";
+    case "boost_heifer_rations":
+      return "Heifers get a better ration so they reach breeding weight on schedule and start earning earlier.";
+    case "service_parlour":
+      return "Downtime is cut. Cows are milked closer to schedule, which protects yield for that lactation.";
+    default:
+      return a.rationale;
+  }
+}
+
+function plainDoNothing(a: ActionPayload): string {
+  return "Nothing changes and the situation develops on its own.";
 }

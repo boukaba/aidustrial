@@ -77,9 +77,9 @@ class ForageField:
     stage: GrowthStage = GrowthStage.VEGETATIVE
     #: Standing dry matter, t/ha. Only accrues when the crop is not water-stressed.
     biomass_t_ha: float = 0.0
-    days_since_sowing: int = 0
-    days_since_cut: int = 0
-    water_stress_days: int = 0
+    days_since_sowing: float = 0.0
+    days_since_cut: float = 0.0
+    water_stress_days: float = 0.0
     weeds_pct: float = 8.0
     heat_stress_days: int = 0
 
@@ -119,7 +119,11 @@ class ForageField:
         """
         peak = PEAK_DM_T_HA[self.crop]
         interval = CUT_INTERVAL_DAYS[self.crop]
-        progress = min(1.0, self.days_since_sowing / max(interval, 1))
+        # Accrual is driven by the REGROWTH cycle, not days since sowing. A cut
+        # resets the cycle; keying off sowing date meant a second cut left the
+        # logistic pinned at p~1, where the shape term is zero, so the field
+        # never regrew.
+        progress = min(1.0, self.days_since_cut / max(interval, 1))
         # Logistic S-curve.
         shape = (6.0 * progress * (1.0 - progress)) / (1.0 + 4.0 * (1.0 - progress) ** 2)
 
@@ -142,7 +146,9 @@ class ForageField:
     def stage_of(self) -> GrowthStage:
         if self.stage is GrowthStage.HARVESTED:
             return self.stage
-        progress = self.days_since_sowing / max(CUT_INTERVAL_DAYS[self.crop], 1)
+        # Stage is reported against the regrowth cycle so a second cut shows
+        # "vegetative" again rather than stuck at maturity.
+        progress = self.days_since_cut / max(CUT_INTERVAL_DAYS[self.crop], 1)
         if progress < 0.15:
             return GrowthStage.EMERGENCE
         if progress < 0.55:
@@ -156,19 +162,17 @@ class ForageField:
         t = self.standing_t
         self.biomass_t_ha = 0.0
         self.days_since_cut = 0
-        # Regrowth starts from the current season position rather than
-        # rewinding to emergence, so a multi-cut crop does not behave like a
-        # freshly sown one.
-        self.days_since_sowing = max(
-            self.days_since_sowing, CUT_INTERVAL_DAYS[self.crop] - 1
-        )
         self.stage = GrowthStage.VEGETATIVE
         return t
 
     def health(self) -> str:
         if self.stage is GrowthStage.HARVESTED:
             return "harvested"
-        if self.water_stress_days >= 4 or self.biomass_t_ha < 1.0:
+        # A field cut this cycle is regrowing, not dead -- absence of standing
+        # crop right after a cut is the expected state, not a fault.
+        if self.water_stress_days >= 4:
+            return "critical"
+        if self.days_since_cut > 12 and self.biomass_t_ha < 1.0:
             return "critical"
         if self.water_stress_days >= 2 or self.weeds_pct > 28:
             return "degraded"
@@ -209,7 +213,10 @@ class CropState:
                     # First barley harvest at Tamest already happened in May
                     # 2026, so corn and sorghum are part-way through a season.
                     days_since_sowing=48 if crop in (CropType.CORN_SILAGE, CropType.SORGHUM_SUDAN) else 110,
-                    biomass_t_ha=rng.uniform(2.0, 6.5) if crop in (CropType.CORN_SILAGE, CropType.SORGHUM_SUDAN) else rng.uniform(5.0, 7.0),
+                    # Days since the last cut. Mid-interval, so the demo does not
+                    # open with every field ripe and a harvest firehose running.
+                    days_since_cut=rng.randint(6, 20),
+                    biomass_t_ha=rng.uniform(5.0, 11.0),
                     weeds_pct=rng.uniform(4.0, 18.0),
                 )
             )
@@ -244,21 +251,25 @@ class CropState:
     def tick(self, rng: random.Random, soil_moisture_by_pivot: dict[int, float], ehl: float) -> None:
         for f in self.fields:
             moisture = soil_moisture_by_pivot.get(f.pivot_id, C.SOIL_MOISTURE_WILTING_PCT)
+            # These are DAYS, and one tick is half a day.
             if moisture <= C.SOIL_MOISTURE_WILTING_PCT:
-                f.water_stress_days += 1
+                f.water_stress_days += 0.5
             else:
-                f.water_stress_days = max(0, f.water_stress_days - 1)
+                f.water_stress_days = max(0.0, f.water_stress_days - 0.5)
 
             if ehl >= C.THI_HEAT_STRESS_MODERATE:
-                f.heat_stress_days += 1
+                f.heat_stress_days += 0.5
 
             f.biomass_t_ha += f.growth_rate_per_day(moisture, ehl) * (
                 self.clock_fraction()
             )
             f.biomass_t_ha = min(PEAK_DM_T_HA[f.crop], f.biomass_t_ha)
 
-            f.days_since_sowing += 1
-            f.days_since_cut += 1
+            # One tick is half a day. These counters are compared against
+            # DAY-based cut intervals, so incrementing by 1 per tick made a
+            # 38-day alfalfa cut fire every 19 hours -- 36 cuts in 8 days.
+            f.days_since_sowing += 0.5
+            f.days_since_cut += 0.5
             f.weeds_pct = min(45.0, f.weeds_pct + rng.uniform(-0.05, 0.09))
             f.stage = f.stage_of()
 

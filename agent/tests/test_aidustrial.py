@@ -310,7 +310,7 @@ def test_forage_growth_stops_below_wilting_point():
     # Mid-season: the logistic accrual curve is still near zero at emergence,
     # so a field has to be part-way through its interval before it grows at all.
     f = ForageField(field_id="X", pivot_id=1, crop=CropType.CORN_SILAGE, area_ha=50.0,
-                    days_since_sowing=48)
+                    days_since_cut=48)
     dry = f.growth_rate_per_day(5.0, 40.0)
     wet = f.growth_rate_per_day(25.0, 40.0)
     assert dry == 0.0, "growth must be exactly zero below the wilting point"
