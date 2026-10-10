@@ -202,6 +202,26 @@ class CropAgent:
             )
         return findings, actions
 
+    def watch(self) -> list[dict]:
+        """The live readings this agent is looking at right now.
+
+        Rendered in the dashboard so a viewer can SEE telemetry arriving at
+        each agent. Values are read live from the sensors, never cached.
+        """
+        c = sensors.crops()
+        driest = min((f["soil_moisture_pct"] for f in c["fields"]), default=0.0)
+        ready = sum(1 for f in c["fields"] if f["ready_for_cut"])
+        return [
+            {"label": "Food growing right now", "value": round(c["standing_t"]), "unit": "t in the field",
+             "status": "ok"},
+            {"label": "Fields too dry", "value": c["water_stressed_ha"], "unit": "ha",
+             "status": "act" if c["water_stressed_ha"] else "ok"},
+            {"label": "Driest field", "value": round(driest, 1), "unit": "% soil water",
+             "status": "stop" if driest <= 9 else "act" if driest < 22 else "ok"},
+            {"label": "Fields ready to cut", "value": ready, "unit": "of " + str(len(c["fields"])),
+             "status": "ok"},
+        ]
+
     # -- round 2 --------------------------------------------------------
 
     def respond(self, board: Blackboard, inbox: list[Message]) -> tuple[list[Finding], list[Action]]:
@@ -380,6 +400,23 @@ class CalvingAgent:
                 f"heifers {len(deficient)} under target, non-productive {ys['non_productive_head']:,}"
             )
         return findings, actions
+
+    def watch(self) -> list[dict]:
+        """The live readings this agent is looking at right now.
+
+        Rendered in the dashboard so a viewer can SEE telemetry arriving at
+        each agent. Values are read live from the sensors, never cached.
+        """
+        ys = sensors.youngstock()
+        cow_ratio = round(ys["airlift_head"] / ys["total_head"] * 100, 1) if ys["total_head"] else 0.0
+        return [
+            {"label": "Heifers to calve soon", "value": ys["by_class"].get("heifer", 0), "unit": "head", "status": "ok"},
+            {"label": "Need replacement cows", "value": cow_ratio, "unit": "% of herd",
+             "status": "act" if cow_ratio > 10 else "ok"},
+            {"label": "Calves lost this week", "value": ys["calf_mortality_7d"], "unit": "calves",
+             "status": "act" if ys["calf_mortality_7d"] > 20 else "ok"},
+            {"label": "Total animals", "value": ys["total_head"], "unit": "head", "status": "ok"},
+        ]
 
     def respond(self, board: Blackboard, inbox: list[Message]) -> tuple[list[Finding], list[Action]]:
         for m in inbox:
@@ -622,6 +659,24 @@ class MilkingAgent:
                 f"SCC {m['bulk_scc_k']:.0f}k, tank {m['bulk_temp_c']:.1f}C, capture {m['capture_ratio']:.0f}%"
             )
         return findings, actions
+
+    def watch(self) -> list[dict]:
+        """The live readings this agent is looking at right now.
+
+        Rendered in the dashboard so a viewer can SEE telemetry arriving at
+        each agent. Values are read live from the sensors, never cached.
+        """
+        m = sensors.milk()
+        return [
+            {"label": "Milk made today", "value": round(m["daily_milk_kg"] / 1000, 1), "unit": "tonnes",
+             "status": "ok"},
+            {"label": "Milk stored", "value": round(m["bulk_tank_kg"] / 1000, 1), "unit": "t in tank",
+             "status": "ok"},
+            {"label": "How fast cows are milked", "value": round(m["throughput_cows_per_hour"]), "unit": "cows/hour",
+             "status": "ok"},
+            {"label": "How warm the cows are", "value": round(m["holding_area_ehl"]), "unit": "EHL",
+             "status": "act" if m["holding_area_ehl"] >= 68 else "ok"},
+        ]
 
     def respond(self, board: Blackboard, inbox: list[Message]) -> tuple[list[Finding], list[Action]]:
         for m in inbox:

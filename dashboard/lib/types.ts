@@ -208,6 +208,25 @@ export interface StreamMessage {
       tick: number; ms: number; ok: boolean; summary: string;
     }[];
   };
+  mesh: {
+    agents: {
+      agent: string;
+      readings: { label: string; value: number | string; unit: string; status: string }[];
+      worst: string; state: string; calls: number; last_tool: string;
+      last_summary: string; last_ms: number;
+      finding: string; severity: string; confidence: number; implies: string;
+      messages: number; open_questions: number; awaiting_reply: boolean;
+    }[];
+    messages: number;
+    unresolved: number;
+    feed: {
+      message_id?: string; kind: string; sender: string; recipient: string;
+      content: string; in_reply_to?: string | null; severity?: string;
+      evidence?: Record<string, unknown>; expects_reply?: boolean;
+    }[];
+    converged: boolean;
+    summary: string;
+  };
   orchestration: {
     converged: boolean; messages: number; unresolved: number; contested: number;
     unresolved_detail: { from: string; to: string; kind: string; content: string }[];

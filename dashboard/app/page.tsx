@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AgentsLive } from "@/components/Agents";
 import { DecisionGate, useFarmStream } from "@/components/Control";
 import { ControlPanel } from "@/components/ControlPanel";
 import { AreaDetail } from "@/components/AreaDetail";
@@ -49,12 +50,13 @@ export default function Command() {
     );
   }
 
-  const { packet, summary, pending, findings, trace } = data;
+  const { packet, summary, pending, findings, trace, mesh } = data;
   const status = overallStatus(summary, Boolean(pending));
   const line = headline(summary, Boolean(pending));
 
   const openArea = (n: NavId) => {
     if (n === "home") return "home";
+    if (n === "agents") return "agents";
     if (n === "decisions") return "decisions";
     if (n === "system") return "mesh";
     return n as "crop" | "livestock" | "milk" | "infrastructure";
@@ -79,7 +81,9 @@ export default function Command() {
             <h1 className="text-xl font-semibold text-slate-50">
               {nav === "home"
                 ? "The Adrar Dairy Farm"
-                : nav === "decisions"
+                : nav === "agents"
+                  ? "Agents at work"
+                  : nav === "decisions"
                   ? "Decisions"
                   : nav === "system"
                     ? "How the system works"
@@ -155,8 +159,11 @@ export default function Command() {
           </>
         )}
 
+        {/* ------------------------------------------- AGENTS AT WORK */}
+        {nav === "agents" && mesh && <AgentsLive mesh={mesh} />}
+
         {/* ----------------------------------------------- AREA DETAIL */}
-        {nav !== "home" && nav !== "decisions" && nav !== "system" && (
+        {nav !== "home" && nav !== "agents" && nav !== "decisions" && nav !== "system" && (
           <AreaDetail p={packet} area={openArea(nav) as "crop" | "livestock" | "milk" | "infrastructure"} />
         )}
 

@@ -91,7 +91,13 @@ class SensorGateway:
         return out
 
     def activity(self) -> dict:
-        """Per-agent live state for the control panel."""
+        """Per-agent live state for the control panel.
+
+        `state` reflects what the agent is doing *right now*, not what it did
+        once. A call older than the last tick means the agent has gone quiet, so
+        it reads as idle rather than permanently busy.
+        """
+        now_tick = self.world.env.clock.tick
         agents: dict[str, dict] = {}
         for c in reversed(self.calls):
             a = agents.setdefault(
@@ -109,8 +115,18 @@ class SensorGateway:
                     "recent": [],
                 },
             )
-            if a["calls"] < 6 and c.tool not in a["recent"]:
+            a["calls"] += 1
+            if c.tool not in a["recent"] and len(a["recent"]) < 6:
                 a["recent"].append(c.tool)
+            # newest call comes first because we iterate reversed
+            a["last_tool"] = c.tool
+            a["last_summary"] = c.summary
+            a["last_ms"] = round(c.ms, 2)
+            a["last_ok"] = c.ok
+            a["last_tick"] = c.tick
+        # a tool call from this tick or the last one still counts as "at work"
+        for a in agents.values():
+            a["state"] = "reading" if now_tick - a["last_tick"] <= 1 else "idle"
         for name, total in self.by_agent.items():
             if name in agents:
                 agents[name]["total_calls"] = total

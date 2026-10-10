@@ -22,6 +22,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from ..agents.specialists import ALL_AGENTS
+from ..graph.orchestrator import ALL as ALL_MESH
 from ..graph.orchestrator import GRAPH
 from ..tools import sensors
 from ..twin import constants as C
@@ -74,6 +75,7 @@ class Session:
             "trace": self.trace[-60:],
             "awaiting_decision": self.awaiting_decision,
             "activity": sensors.GW.activity(),
+            "mesh": self._mesh(p),
             # A session that has not run a graph tick yet must still emit a
             # well-formed payload -- the panel reads these keys unconditionally.
             "orchestration": self.orchestration
@@ -94,6 +96,60 @@ class Session:
                 "ownership": f"{C.OWNERSHIP_SPLIT[0]}/{C.OWNERSHIP_SPLIT[1]}",
                 "aquifer": C.AQUIFER_KIND,
             },
+        }
+
+    def _mesh(self, p: dict) -> dict:
+        """Per-agent live state: what it reads, what it is doing, what it decided.
+
+        This is the answer to "is anything actually thinking?". Each agent
+        reports its own live readings straight from the sensors, its latest
+        finding, and where its proposal currently sits in the mesh. Nothing
+        here is precomputed -- it is rebuilt on every push.
+        """
+        act = {a["agent"]: a for a in sensors.GW.activity()["agents"]}
+        findings: dict[str, dict] = {}
+        for f in self.findings:
+            findings[f.get("agent", "")] = f
+        msgs = p.get("board") or []
+        answered = {m.get("in_reply_to") for m in msgs if m.get("in_reply_to")}
+
+        agents: list[dict] = []
+        for a in ALL_MESH:
+            name = a.name
+            live = act.get(name, {})
+            rows = a.watch()
+            worst = "stop" if any(r["status"] == "stop" for r in rows) else (
+                "act" if any(r["status"] == "act" for r in rows) else "ok"
+            )
+            f = findings.get(name, {})
+            # A proposal is "live" once raised and not yet answered on the board.
+            mine = [m for m in msgs if m.get("sender") == name]
+            open_q = [m for m in mine if m.get("expects_reply") and m.get("message_id") not in answered]
+            agents.append({
+                "agent": name,
+                "readings": rows,
+                "worst": worst,
+                "state": live.get("state", "idle"),
+                "calls": live.get("calls", 0),
+                "last_tool": live.get("last_tool", ""),
+                "last_summary": live.get("last_summary", ""),
+                "last_ms": live.get("last_ms", 0),
+                "finding": f.get("summary", ""),
+                "severity": f.get("severity", "info"),
+                "confidence": f.get("confidence", 0),
+                "implies": f.get("implies", ""),
+                "messages": len(mine),
+                "open_questions": len(open_q),
+                "awaiting_reply": bool(open_q),
+            })
+
+        return {
+            "agents": agents,
+            "messages": len(msgs),
+            "unresolved": len([m for m in msgs if m.get("expects_reply") and m.get("message_id") not in answered]),
+            "feed": msgs[-14:],
+            "converged": self.orchestration.get("converged", True) if self.orchestration else True,
+            "summary": self.orchestration.get("summary", "") if self.orchestration else "",
         }
 
     @staticmethod

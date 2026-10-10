@@ -241,6 +241,26 @@ class AgronomistAgent:
             self.memory.note(f"soil OK, aquifer {water['budget_used_pct']:.0f}% of envelope")
         return findings, actions
 
+    def watch(self) -> list[dict]:
+        """The live readings this agent is looking at right now.
+
+        Rendered in the dashboard so a viewer can SEE telemetry arriving at
+        each agent. Values are read live from the sensors, never cached.
+        """
+        w = sensors.get_water_budget()
+        pivots = sensors.get_pivot_telemetry()
+        driest = min((x["soil_moisture_pct"] for x in pivots), default=0.0)
+        return [
+            {"label": "Water used this year", "value": round(w["budget_used_pct"], 1), "unit": "%",
+             "status": "stop" if w["budget_used_pct"] >= 100 else "act" if w["budget_used_pct"] >= 85 else "ok"},
+            {"label": "Where the water comes from", "value": "fossil, not rain",
+             "unit": "non-renewable", "status": "act"},
+            {"label": "Driest field", "value": round(driest, 1), "unit": "% soil water",
+             "status": "stop" if driest <= 9 else "act" if driest < 22 else "ok"},
+            {"label": "Machines running", "value": sum(1 for x in pivots if x["running"]),
+             "unit": "of " + str(len(pivots)), "status": "ok"},
+        ]
+
     domains: tuple[str, ...] = ("irrigation", "soil", "water")
 
     def survey(self, board: Blackboard):
@@ -461,6 +481,28 @@ class VeterinarianAgent:
 
         return findings, actions
 
+    def watch(self) -> list[dict]:
+        """The live readings this agent is looking at right now.
+
+        Rendered in the dashboard so a viewer can SEE telemetry arriving at
+        each agent. Values are read live from the sensors, never cached.
+        """
+        h = sensors.get_herd_vitals()
+        env = sensors.get_environment_telemetry()
+        no_cool = len(sensors.get_barns_without_cooling()["barns"])
+        weakest = min((g["rumination_pct"] for g in h["groups"]), default=100.0)
+        band = env["heat_stress_band"]
+        return [
+            {"label": "Heat on the cows", "value": round(env["effective_heat_load"]), "unit": "EHL",
+             "status": "stop" if band == "severe" else "act" if band == "moderate" else "ok"},
+            {"label": "Chew activity down", "value": round(h["rumination_deficit_pct"], 1), "unit": "%",
+             "status": "stop" if h["rumination_deficit_pct"] >= 15 else "act" if h["rumination_deficit_pct"] >= 10 else "ok"},
+            {"label": "Weakest barn", "value": round(weakest), "unit": "% of normal",
+             "status": "act" if weakest < 90 else "ok"},
+            {"label": "Barns with no cooling", "value": no_cool, "unit": "of " + str(len(h["groups"])),
+             "status": "act" if no_cool else "ok"},
+        ]
+
     domains: tuple[str, ...] = ("herd_health", "heat", "cooling")
 
     def survey(self, board: Blackboard):
@@ -628,6 +670,27 @@ class MaintenanceAgent:
 
         return findings, actions
 
+    def watch(self) -> list[dict]:
+        """The live readings this agent is looking at right now.
+
+        Rendered in the dashboard so a viewer can SEE telemetry arriving at
+        each agent. Values are read live from the sensors, never cached.
+        """
+        pivots = sensors.get_pivot_telemetry()
+        degraded = sensors.get_degraded_assets()
+        hottest = max((x["bearing_temp_c"] for x in pivots), default=0.0)
+        vib = max((x["vibration_mm_s"] for x in pivots), default=0.0)
+        blocked = sum(x["nozzles_blocked"] for x in pivots)
+        return [
+            {"label": "Machines needing work", "value": len(degraded), "unit": "of " + str(len(pivots)),
+             "status": "act" if degraded else "ok"},
+            {"label": "Hottest bearing", "value": round(hottest), "unit": "C",
+             "status": "stop" if hottest >= 92 else "act" if hottest >= 78 else "ok"},
+            {"label": "Highest vibration", "value": round(vib, 1), "unit": "mm/s",
+             "status": "act" if vib >= 6.5 else "ok"},
+            {"label": "Blocked nozzles", "value": blocked, "unit": "total", "status": "act" if blocked > 8 else "ok"},
+        ]
+
     domains: tuple[str, ...] = ("assets", "maintenance")
 
     def survey(self, board: Blackboard):
@@ -760,6 +823,26 @@ class LogisticsAgent:
                 )
 
         return findings, actions
+
+    def watch(self) -> list[dict]:
+        """The live readings this agent is looking at right now.
+
+        Rendered in the dashboard so a viewer can SEE telemetry arriving at
+        each agent. Values are read live from the sensors, never cached.
+        """
+        f = sensors.get_feed_inventory()
+        fleet = sensors.get_fleet_positions()
+        cold = max((t["coolant_temp_c"] for t in fleet), default=0.0)
+        cover = f["feed_hours_of_cover"]
+        return [
+            {"label": "Food in store", "value": round(cover), "unit": "hours",
+             "status": "stop" if cover < 24 else "act" if cover < 72 else "ok"},
+            {"label": "Daily need", "value": round(f["daily_demand_t"], 1), "unit": "t/day", "status": "ok"},
+            {"label": "Warmest tanker", "value": round(cold, 1), "unit": "C",
+             "status": "stop" if cold > 8 else "act" if cold > 6.5 else "ok"},
+            {"label": "Tankers on the road", "value": sum(1 for t in fleet if t["leg"] == "in_transit"),
+             "unit": "of " + str(len(fleet)), "status": "ok"},
+        ]
 
     domains: tuple[str, ...] = ("feed", "transport", "airlift")
 
