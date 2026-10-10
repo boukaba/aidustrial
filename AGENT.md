@@ -69,17 +69,28 @@ twin/           Digital twin of the Adrar site. constants.py tags every
                 number with provenance (SOURCED/DERIVED/ASSUMPTION/...).
 tools/sensors.py  The ONLY module that talks to the twin. Every agent call
                 goes through here. Swap in real telemetry = edit this file.
+tools/llm.py    ★ The reasoning brain. Thread-safe queue, async drain,
+                escalation-only validation, JSON repair, action filtering.
+tools/actions.py  Action/Finding dataclasses + score_risk/score_urgency.
+                Risk scoring is deterministic and NEVER touched by the LLM.
 agents/specialists.py  Vet, agronomist, maintenance, logistics. Each has a
                 run() that decides, and a watch() that reports live readings.
 agents/domains.py     Crop, calving, milking. Same shape.
+agents/reasoning.py   ★ Prompt construction + the escalation-only merge of
+                an LLM verdict into rule output. READERS per agent, OWNED
+                action vocabulary, _trim byte budgets.
+agents/narrator.py    ★ The hidden eighth agent. Plain-language observations.
+                Proposes nothing, gates nothing.
+agents/mesh.py   Blackboard + digest() (now actually used, for prompts).
 graph/orchestrator.py LangGraph state machine. ALL = 7 agents combined.
-server/app.py   FastAPI + WebSocket. snapshot() builds the whole view,
-                including _mesh() — the per-agent "what is it doing" payload.
-tests/          33 cases guarding the demo's defensibility (diurnal curve,
-                dry-vs-humid heat, agent idempotence, risk≠urgency).
+                wake_specialists requests reasoning and merges verdicts.
+server/app.py   FastAPI + WebSocket. Starts the brain + narrator tasks.
+                snapshot() exposes llm + narration + per-agent rationale.
+tests/          59 cases. test_llm.py guards the safety invariants (no
+                network in the suite).
 ```
 
-Frontend (`dashboard/`, ~5.5k lines TS/TSX):
+Frontend (`dashboard/`, ~5.6k lines TS/TSX):
 
 ```
 app/page.tsx        The shell. Nav routing, status header, DecisionStrip,
@@ -94,13 +105,15 @@ lib/identity.ts     ★ Canonical agent registry: id, name, monogram, role,
 lib/language.ts     Every user-facing string. NAV, glossary, status text.
                     Re-exports agentName/agentRole from identity.
 lib/explain.ts      Plain-language explanations of every technical reading.
-lib/types.ts        StreamMessage (incl. `mesh`), AGENT_COLOR.
+lib/types.ts        StreamMessage (incl. `mesh`, `llm`, `narration`),
+                    AGENT_COLOR.
 components/Icons.tsx    ★ All SVG glyphs: AgentGlyph, AgentBadge, NavGlyph,
                     UI gear/triangle. Replaces every emoji.
 components/Live.tsx     ★ Liveness primitives: LiveNumber (flashes its own
                     color on change), StatusChip, SevChip, ReadingRow.
 components/Agents.tsx   The money shot. SignalFlow diagram (7 agents → bus →
-                    OR), hero stats, AgentCard grid, MessageFeed.
+                    OR), hero stats with REASONED, AgentCard grid showing
+                    each model's rationale + attribution, MessageFeed.
 components/Control.tsx  useFarmStream hook, DecisionStrip (slim, sticky),
                     DecisionGate (full, on Decisions screen).
 components/Home.tsx     Identity-colored status cards with flashing numbers.
@@ -138,6 +151,105 @@ are the load-bearing pieces of the mission-control look.
 | 9 | `a276f11` | 60-second tour as a **modal** with a close button, live numbers per stop |
 | 10 | `fbe0537` | This document |
 | 11 | `cd35380` | **Mission-control rebuild** — per-agent identity, SVG glyphs everywhere, flash-on-change numbers, signal-flow diagram, slim decision strip |
+| 12 | `6c6b1d6` | This document as a session-handoff (file map, exact commands, loose ends) |
+| 13 | `8521ba6` | **The agents actually reason** — free-LLM decision path, hidden narrator agent, escalation-only safety rules |
+
+---
+
+## The reasoning layer (commit 13)
+
+The seven agents used to be pure threshold machines: `if soil_moisture <=
+wilting: propose start_pivot`. Defensible, testable, and not intelligence. A
+judge watching for thirty seconds could tell.
+
+Now each agent's `survey()` still runs its rules first (the floor that keeps
+the demo alive), then a **real language model** reasons about the same slice of
+readings and produces the finding's plain-language summary, its rationale, and
+optionally an action. The verdict lands a few ticks late and is merged in from
+then on.
+
+### Which backend, and why not OpenCode Zen
+
+`TOKENHARBOR_API_KEY` is already in the environment. Token Harbor is plain
+OpenAI-compatible at `https://tokenharbor.ai/v1/chat/completions`, and your
+`opencode.jsonc` lists several free models on it (`mimo-v2.6-flash:free`,
+`deepseek-v4-flash:free`, `claude-haiku-5.5:free`, …).
+
+**OpenCode Zen is not usable from here.** Its free tier answers programmatic
+calls with `FreeTierError: OpenCode's free tier can only be used from within
+OpenCode` (HTTP 403). The key in `~/.local/share/opencode/auth.json`
+(`opencode-go`) gets the same refusal. Do not waste time on it. Do not try to
+route around that restriction either — it is an access control, and this
+project's honesty constraint applies to how we obtain compute, not only to what
+we display.
+
+### The three constraints
+
+**1. Latency.** A trivial call measures ~4.7s; a real reasoning call measures
+6–24s. The world ticks 12×/second. So the brain **never blocks a tick**:
+
+- `Brain.request()` is thread-safe and non-blocking (the graph runs in a worker
+  thread via `asyncio.to_thread`); it only stashes a payload.
+- A background `asyncio` task started on server startup drains a queue, at most
+  **3 concurrent** calls, each capped at **24s**.
+- Ticks keep running on rules while calls are in flight; the verdict is used
+  from a later pass.
+- A **22s per-agent cooldown** dedups. The twin changes every tick, so a
+  content-hash cache can never hit — the cooldown is what stops hammering the
+  free tier. Measured: 11 calls, 1 failure, 35 cache hits.
+
+**2. Trust.** A flash model is a fallible narrator, not an oracle.
+
+- It may choose *whether* an action is warranted and *how urgent*.
+- It may **never set the risk score**. Risk is what routes a proposal to the
+  human gate; a model that could lower its own risk could slip something past
+  the gate. Risk stays with the deterministic `score_risk()`.
+- It may **not de-escalate**. Severity and urgency may only *rise* from what
+  the rules found.
+- An action the model invents that the rules did not find is accepted only if
+  it is in the known 14-action vocabulary, and is always scored **above** the
+  human-gate ceiling — we have no evidence to verify it, so it faces a person.
+- A rule-mandated action the model *omits* is kept anyway. Omission is the one
+  failure we refuse to inherit.
+
+**3. Degradation.** No key, or `AIDUSTRIAL_LLM=off`, and the system is
+byte-for-byte the pre-LLM one. A timeout, a rate limit or a malformed response
+falls back to the rules. A circuit breaker opens after 3 consecutive failures
+for 45s. The original 33 tests pass unchanged.
+
+### The hidden eighth agent
+
+`agents/narrator.py`. It watches the same simulated physics and writes short
+plain-language observations for a reader who has never run a dairy. It proposes
+nothing, gates nothing, and never appears in the human decision queue — the only
+kind of agent worth giving a free-form model. Runs on its own 12s cadence,
+entirely off the graph tick. It even writes its own honesty disclaimer.
+
+### Configuration
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `TOKENHARBOR_API_KEY` | — | Required. Absent = brain disabled, rules only. |
+| `AIDUSTRIAL_LLM` | on | `off` / `0` / `false` / `no` disables everything. |
+| `AIDUSTRIAL_LLM_MODEL` | `mimo-v2.6-flash:free` | Any Token Harbor free model. |
+| `AIDUSTRIAL_LLM_BASE` | `https://tokenharbor.ai/v1` | OpenAI-compatible base URL. |
+
+### What is exposed to the UI
+
+- `snapshot.llm` — `{enabled, model, calls, failures, cache_hits, dropped_actions, last_ms, last_error, agents_reasoned, …}`.
+- `snapshot.narration` — narrator stats + recent observations.
+- `mesh.agents[i].thinking` / `.reasoned` / `.rationale` / `.reasoned_by` / `.reasoned_ms` — per-agent live reasoning state.
+
+### Two bugs found and fixed here (don't repeat)
+
+- **`request()` used `dict.get()` to mean "in flight."** `get()` returns `None`
+  for both an absent key *and* a `None` value, so the guard "if already in
+  flight, return" matched everything and **nothing was ever queued**. In-flight
+  is now an explicit `set`. If you track two states, use two structures.
+- **`_repair_truncated` only handled a cut inside a VALUE.** A cut inside a KEY
+  (`..."confid`) returned `None` and discarded the whole verdict. It now walks
+  the string back to the last well-formed prefix. Free models stop mid-key as
+  often as mid-value.
 
 ---
 
@@ -250,14 +362,18 @@ knows it was considered, not stumbled into.
 ## How to run it
 
 Backend on `:8781` (needs `langgraph`, `langchain-core`, `fastapi`, `uvicorn`,
-`websockets`; use `--no-project --with ...` if they are not in your env):
+`websockets`, `httpx`; use `--no-project --with ...` if they are not in your env):
 
 ```bash
 cd agent
 uv run --no-project --with "langgraph>=0.2" --with "langchain-core>=0.3" \
-  --with fastapi --with uvicorn --with websockets \
+  --with fastapi --with uvicorn --with websockets --with httpx \
   python -m uvicorn aidustrial.server.app:app --app-dir src --port 8781
 ```
+
+For the agents to actually reason, `TOKENHARBOR_API_KEY` must be set in the
+environment (it already is on this machine). Without it the system still runs,
+just on rules only — check `GET /api/site/demo` → `llm.enabled`.
 
 Frontend on `:3010` (production start; `pnpm install` first if needed):
 
@@ -275,17 +391,19 @@ judge watch lands inside the scenario.
 Useful knobs on the page: **Speed** (4× / 14× / 40×) and the **Panel** button
 (right-side technical disclosure). The **Agents at work** screen is the money
 shot — the signal-flow diagram lights a line only when that agent actually
-spoke this round.
+spoke this round, and each card shows the model's own rationale under the
+finding.
 
 ## How to verify it
 
 ```bash
 cd agent
 uv run --no-project --with "langgraph>=0.2" --with "langchain-core>=0.3" \
-  --with pytest python -m pytest tests/ -q          # expect 33 passed
-uv run --no-project --with ruff ruff check src/     # expect clean
+  --with fastapi --with uvicorn --with websockets --with httpx --with pytest \
+  python -m pytest tests/ -q                    # expect 59 passed
+uv run --no-project --with ruff ruff check src/ tests/   # expect clean
 cd ../dashboard
-pnpm exec next build                                 # expect "Compiled successfully"
+pnpm exec next build                            # expect "Compiled successfully"
 ```
 
 Both services up:
@@ -295,10 +413,22 @@ curl -s -o /dev/null -w "frontend %{http_code}\n" http://localhost:3010
 curl -s -o /dev/null -w "backend %{http_code}\n"  http://localhost:8781/api/health
 ```
 
-The 33 tests guard the properties that make the demo defensible rather than
-decorative — that the diurnal curve is a real 24 h cycle, that dry-arid heat is
-genuinely *less* lethal than humid heat, that agents never re-propose a
-satisfied action, and that risk and urgency stay independent axes.
+To confirm reasoning is live (not just rules):
+
+```bash
+curl -s http://localhost:8781/api/site/demo | python3 -c "
+import json,sys; d=json.load(sys.stdin); l=d.get('llm',{})
+print('enabled', l.get('enabled'), '| calls', l.get('calls'),
+      '| reasoned', l.get('agents_reasoned'), '| err', l.get('last_error') or '-')"
+```
+
+Expect `enabled True`, a growing `calls`, and a non-empty `agents_reasoned`
+within ~30s of a tick running. The 33 original tests guard the properties that
+make the demo defensible rather than decorative — that the diurnal curve is a
+real 24 h cycle, that dry-arid heat is genuinely *less* lethal than humid heat,
+that agents never re-propose a satisfied action, and that risk and urgency stay
+independent axes. The 26 new tests in `test_llm.py` guard the safety invariants
+of the reasoning layer.
 
 ---
 
@@ -308,6 +438,14 @@ satisfied action, and that risk and urgency stay independent axes.
   call `tools/sensors.py`, which is the single module that knows it is talking
   to a simulation. Swapping the twin for real telemetry means editing that file
   and nothing else.
+- **The LLM never sets a risk score.** `score_risk()` is deterministic and
+  decides whether a human is consulted. A model that could lower its own risk
+  could slip an action past the gate. If you add a model-driven score anywhere,
+  you have broken the HITL argument.
+- **A model may escalate, never de-escalate.** Severity and urgency may only
+  rise from what the rules found. The rules are the floor, not a suggestion.
+- **A model-proposed action is always gated.** No evidence to verify it means it
+  faces a person. Never let a model-originated action auto-approve.
 - **Every user-facing string goes in `dashboard/lib/language.ts`.** No jargon
   in the UI. Name things by what they *do* ("Cow food", not "Crop production").
   Technical terms live behind a "details" disclosure.
@@ -332,14 +470,17 @@ satisfied action, and that risk and urgency stay independent axes.
 - **Respect `prefers-reduced-motion`.** All ambient motion is already guarded
   in `globals.css`; keep new animations inside that guard.
 - **Don't fake "live".** If a number isn't streaming from the twin, label it.
+  The same applies to reasoning: if the brain is off, say so rather than
+  implying the agents are thinking.
 
 ---
 
 ## Honest status / what's left
 
 **Judge-ready** for the pitch: mission-control shell, seven visibly distinct
-agents with live flashing readings, signal-flow diagram, working HITL gate,
-modal tour, plain-language layer throughout, screenshot-friendly.
+agents with live flashing readings, **agents that genuinely reason via a free
+LLM with a hidden narrator**, signal-flow diagram, working HITL gate, modal
+tour, plain-language layer throughout, screenshot-friendly.
 
 Known loose ends, in rough priority order:
 
@@ -349,12 +490,18 @@ Known loose ends, in rough priority order:
    still list-shaped.** They inherit the identity hairline but don't have the
    live flashing treatment the Agents view has. Giving each a per-field live
    panel with `LiveNumber` + `StatusChip` is the obvious next step.
-3. **Per-agent "thinking" traces.** The tool name is shown; a short
-   natural-language rationale per call would strengthen "thinking".
-4. **The README is stale** — it still says "four specialist agents" and "23
-   tests". Actual: seven agents, 33 tests. Rewrite it to match this file.
-5. **No real photo/thumbnail per agent** — optional warmth, low priority.
-6. **The Adrar twin is simulated.** The moment real telemetry exists, point
+3. **The README is stale** — it still says "four specialist agents" and "23
+   tests". Actual: seven agents, 59 tests. Rewrite it to match this file.
+4. **Only the agents triage wakes get a reasoning call.** That is correct (an
+   agent with nothing to look at should not burn the free tier) but it means a
+   quiet scenario shows 2–3 agents reasoning, not 7. If you want more visible
+   reasoning, either widen `triage`'s wake rules or add a low-priority "every
+   agent reasons every N seconds" sweep.
+5. **Reasoning latency is 6–24s** on the free tier. The tick never blocks, so
+   the dashboard stays live, but a verdict arrives a few ticks late. A paid
+   model would cut this to ~1s. `AIDUSTRIAL_LLM_MODEL` is the only knob.
+6. **No real photo/thumbnail per agent** — optional warmth, low priority.
+7. **The Adrar twin is simulated.** The moment real telemetry exists, point
    `sensors.py` at it and the rest of the stack is unchanged.
 
 ---
