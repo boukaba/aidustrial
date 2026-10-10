@@ -1,0 +1,275 @@
+"""Layer 3.5 - FastAPI + WebSocket bridge.
+
+One session per thread. The graph runs against a live twin held by the session,
+not by LangGraph state, so the checkpointer only ever sees plain data.
+
+Two channels to the dashboard:
+  WS  /ws/stream   -- continuous telemetry + agent trace, pushed as it happens
+  POST /decide     -- the Farm Director's verdict, which resumes the thread
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+import time
+from dataclasses import dataclass, field
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
+
+from ..agents.specialists import ALL_AGENTS
+from ..graph.orchestrator import GRAPH
+from ..tools import sensors
+from ..twin import constants as C
+from ..twin.world import World
+
+app = FastAPI(title="aidustrial", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+_compiled = GRAPH.compile(checkpointer=MemorySaver())
+
+
+# ---------------------------------------------------------------------------
+# Session
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Session:
+    """One farm run: twin + graph thread + pending decision."""
+
+    thread_id: str
+    world: World
+    speed: float = 12.0  # ticks per second
+    running: bool = True
+    trace: list[dict] = field(default_factory=list)
+    history: list[dict] = field(default_factory=list)
+    pending: dict | None = None
+    findings: list[dict] = field(default_factory=list)
+    subscribers: set[WebSocket] = field(default_factory=set)
+    last_push: float = 0.0
+    awaiting_decision: bool = False
+
+    def snapshot(self) -> dict:
+        p = self.world.observe()
+        return {
+            "type": "telemetry",
+            "thread": self.thread_id,
+            "packet": p,
+            "summary": self._summary(p),
+            "pending": self.pending,
+            "findings": self.findings[-14:],
+            "trace": self.trace[-40:],
+            "awaiting_decision": self.awaiting_decision,
+            "project": {
+                "name": C.PROJECT,
+                "location": C.LOCATION,
+                "operator": C.OPERATOR,
+                "state_partner": C.STATE_PARTNER,
+                "ownership": f"{C.OWNERSHIP_SPLIT[0]}/{C.OWNERSHIP_SPLIT[1]}",
+                "aquifer": C.AQUIFER_KIND,
+            },
+        }
+
+    @staticmethod
+    def _summary(p: dict) -> dict:
+        e, h, l = p["environment"], p["herd"], p["logistics"]
+        return {
+            "sim_time": p["time"],
+            "day": p["day"],
+            "hour": p["hour"],
+            "phase": p["phase"],
+            "temperature_c": e["temperature_c"],
+            "thi_air": e["thi_air"],
+            "effective_heat_load": e["effective_heat_load"],
+            "heat_stress_band": e["heat_stress_band"],
+            "aquifer_pct": e["aquifer_budget_used_pct"],
+            "aquifer_status": e["aquifer_status"],
+            "herd_head": h["head"],
+            "rumination_deficit": h["rumination_deficit_pct"],
+            "milk_loss_kg": h["milk_loss_today_kg"],
+            "feed_hours": l["feed_hours_of_cover"],
+            "airlift_delivered": l["airlift"]["delivered"],
+            "airlift_target": l["airlift"]["target"],
+        }
+
+    def push_trace(self, events: list[dict]) -> None:
+        for e in events:
+            self.trace.append({**e, "wall": time.time()})
+
+
+SESSIONS: dict[str, Session] = {}
+
+
+#: Open the demo three days in. Days 0-2 are a quiet baseline; the pump failure
+#: lands on day 3 and the heatwave on days 4-6. A judge watching five minutes
+#: should land inside the scenario, not spend it watching nothing happen.
+DEMO_WARMUP_TICKS = (3 * 48) + 24
+
+
+def get_session(thread_id: str, speed: float = 12.0) -> Session:
+    if thread_id not in SESSIONS:
+        world = World()
+        for _ in range(DEMO_WARMUP_TICKS):
+            world.step()
+        sensors.bind(world)
+        SESSIONS[thread_id] = Session(thread_id=thread_id, world=world, speed=speed)
+    return SESSIONS[thread_id]
+
+
+# ---------------------------------------------------------------------------
+# Graph driver
+# ---------------------------------------------------------------------------
+
+
+
+
+async def drive(session: Session, approved: dict | None = None) -> None:
+    """Advance the graph one tick (or resume it after a decision)."""
+    cfg = {"configurable": {"thread_id": session.thread_id}}
+
+    try:
+        if approved is not None:
+            out = await asyncio.to_thread(
+                _compiled.invoke,
+                Command(resume=approved),
+                cfg,
+            )
+        else:
+            out = await asyncio.to_thread(
+                _compiled.invoke, {"max_turns": 1, "turn": 0}, cfg
+            )
+    except Exception as exc:  # noqa: BLE001
+        session.trace.append(
+            {"agent": "system", "phase": "error", "message": f"Graph error: {exc}"}
+        )
+        session.awaiting_decision = False
+        return
+
+    session.push_trace(out.get("trace") or [])
+    session.findings = [
+        f.to_dict() for f in (out.get("findings") or [])
+    ][-14:]
+    session.executed = out.get("executed") or []  # type: ignore[attr-defined]
+
+    it = out.get("__interrupt__")
+    payload = it[0].value if it else None
+    if payload:
+        session.pending = payload
+        session.awaiting_decision = True
+    else:
+        session.pending = None
+        session.awaiting_decision = False
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+@app.get("/api/health")
+async def health() -> dict:
+    return {
+        "ok": True,
+        "agents": [a.name for a in ALL_AGENTS],
+        "sessions": len(SESSIONS),
+        "provenance": C.provenance,
+    }
+
+
+@app.get("/api/site/{thread_id}")
+async def site(thread_id: str, speed: float = 12.0) -> dict:
+    s = get_session(thread_id, speed)
+    return s.snapshot()
+
+
+@app.post("/api/session/{thread_id}/speed")
+async def set_speed(thread_id: str, body: dict) -> dict:
+    s = get_session(thread_id)
+    s.speed = max(1.0, min(60.0, float(body.get("speed", 12.0))))
+    return {"speed": s.speed}
+
+
+@app.post("/api/session/{thread_id}/pause")
+async def pause(thread_id: str) -> dict:
+    s = get_session(thread_id)
+    s.running = not s.running
+    return {"running": s.running}
+
+
+@app.post("/api/decide/{thread_id}")
+async def decide(thread_id: str, body: dict) -> dict:
+    """The Farm Director's verdict. Resumes the suspended graph."""
+    s = get_session(thread_id)
+    if not s.awaiting_decision:
+        return {"error": "no decision pending"}
+
+    await drive(
+        s,
+        approved={
+            "approved": bool(body.get("approved")),
+            "note": str(body.get("note", "")),
+        },
+    )
+    await broadcast(s)
+    return {"ok": True, "awaiting_decision": s.awaiting_decision, "pending": s.pending}
+
+
+async def broadcast(session: Session) -> None:
+    if not session.subscribers:
+        return
+    msg = json.dumps(session.snapshot(), default=str)
+    dead: list[WebSocket] = []
+    for ws in list(session.subscribers):
+        try:
+            await ws.send_text(msg)
+        except Exception:  # noqa: BLE001
+            dead.append(ws)
+    for ws in dead:
+        session.subscribers.discard(ws)
+
+
+@app.websocket("/ws/stream")
+async def stream(ws: WebSocket, thread_id: str = "demo", speed: float = 12.0) -> None:
+    await ws.accept()
+    session = get_session(thread_id, speed)
+    session.subscribers.add(ws)
+
+    await ws.send_text(json.dumps(session.snapshot(), default=str))
+    last_graph = 0.0
+
+    try:
+        while True:
+            if not session.running:
+                await asyncio.sleep(0.2)
+                continue
+
+            interval = 1.0 / session.speed
+            now = time.time()
+
+            # Only drive the graph when the previous turn cleared its gate.
+            # If a human decision is outstanding the world pauses at the gate --
+            # the correct behaviour for an agentic ops system.
+            if not session.awaiting_decision and now - last_graph > interval:
+                last_graph = now
+                await drive(session)
+                if not session.subscribers:
+                    await asyncio.sleep(interval)
+                    continue
+
+            await asyncio.sleep(interval)
+            if now - session.last_push > 0.45:
+                session.last_push = now
+                with contextlib.suppress(Exception):
+                    await broadcast(session)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        session.subscribers.discard(ws)
