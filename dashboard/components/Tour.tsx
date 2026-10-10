@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { Packet } from "@/lib/types";
-import { AreaId } from "@/lib/explain";
+import { NavId } from "@/lib/language";
 
 interface Stop {
-  area: AreaId | null;
+  area: NavId | null;
   title: string;
   body: string;
   look: string;
@@ -17,7 +17,7 @@ const STOPS: Stop[] = [
     title: "This is a farm in the Sahara",
     body:
       "A 3.5 billion dollar dairy project in Adrar, Algeria. 33,000 head of cows, growing its own feed, on groundwater that does not refill. The system below watches all of it and asks you for a decision when something needs a human.",
-    look: "Start at the top: the six tiles are the site's vital signs.",
+    look: "The three cards below are the whole farm in one view: food, cows, milk.",
   },
   {
     area: "crop",
@@ -48,7 +48,7 @@ const STOPS: Stop[] = [
     look: "Compare the water budget against the cooling hardware panel.",
   },
   {
-    area: "mesh",
+    area: "system",
     title: "The specialists argue with each other",
     body:
       "Seven agents share one board. In the first round they all look at the site and post what they see. In the second round, only the agents that were actually asked something wake up and answer. That is why one decision never gets made on a single point of view.",
@@ -69,7 +69,7 @@ export function GuidedTour({
   hasPending,
 }: {
   p: Packet;
-  onSelectArea: (a: AreaId | null) => void;
+  onSelectArea: (a: NavId | null) => void;
   hasPending: boolean;
 }) {
   const [step, setStep] = useState<number | null>(null);
@@ -77,7 +77,7 @@ export function GuidedTour({
   useEffect(() => {
     if (step === null) return;
     const s = STOPS[step];
-    onSelectArea(s.area);
+    onSelectArea(s.area ?? "home");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 

@@ -46,7 +46,7 @@ function CropDetail({ p }: { p: Packet }) {
   const c = p.crop_production;
   return (
     <div className="space-y-4">
-      <Section title="Each field" hint="click a metric to learn what it means">
+      <Section title="Each field — is it growing?" hint="click a metric to learn what it means">
         <div className="space-y-2">
           {c.fields.map((f) => {
             const soil = explainSoilMoisture(f.soil_moisture_pct);
@@ -87,7 +87,7 @@ function CropDetail({ p }: { p: Packet }) {
                   <div>
                     <div className="mb-1 flex items-baseline justify-between">
                       <span className="label">
-                        <Term term={GLOSSARY["Standing DM"]}>Crop mass</Term>
+                        <Term term={GLOSSARY["Standing DM"]}>Feed growing</Term>
                       </span>
                       <span className="metric text-[11px] text-slate-300">
                         {f.biomass_t_ha.toFixed(1)} t/ha
@@ -114,14 +114,14 @@ function CropDetail({ p }: { p: Packet }) {
       </Section>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Programme totals">
+        <Section title="How the fields are doing overall">
           <Row label="Forage standing" value={`${Math.round(c.standing_t).toLocaleString()} t`} />
           <Row label="Harvested so far" value={`${Math.round(c.harvested_t).toLocaleString()} t`} sub={`${c.cuts_completed} cuts`} />
           <Row label="Fields run dry" value={`${c.water_stressed_ha.toFixed(0)} ha`} />
           <Row label="Average protein" value={`${c.protein_pct.toFixed(1)}%`} />
           <Row label="Annual target" value={`${(c.annual_target_t / 1e6).toFixed(1)} Mt`} />
         </Section>
-        <Section title="Why this area is hard">
+        <Section title="Why growing feed here is difficult">
           <p className="text-xs leading-relaxed text-slate-400">
             The whole forage programme has to be grown with groundwater that does not refill. The
             project&apos;s own numbers imply roughly{" "}
@@ -152,7 +152,7 @@ function LivestockDetail({ p }: { p: Packet }) {
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Herd structure">
+        <Section title="What is on the farm">
           <Row label="Total animals" value={l.total_head.toLocaleString()} />
           <Row label="Producing milk" value={l.lactating_head.toLocaleString()} />
           <Row label="Not producing yet" value={l.non_productive_head.toLocaleString()} />
@@ -161,7 +161,7 @@ function LivestockDetail({ p }: { p: Packet }) {
           ))}
         </Section>
 
-        <Section title="What arrived by air" hint="109 flights from 9 US states">
+        <Section title="The cows that arrived by air" hint="109 flights from 9 US states">
           <Row label="Animals airlifted" value={l.airlift_head.toLocaleString()} />
           {Object.entries(l.airlift_mix).map(([k, v]) => (
             <Row key={k} label={k} value={v.toLocaleString()} />
@@ -173,7 +173,7 @@ function LivestockDetail({ p }: { p: Packet }) {
         </Section>
       </div>
 
-      <Section title="Heifers — growth toward breeding weight" hint="target 570 kg at 23 months">
+      <Section title="Young cows getting ready to have calves" hint="target 570 kg at 23 months">
         <div className="space-y-2">
           {l.heifers.map((g) => {
             const w = explainHeiferWeight(g.weight_pct_of_target);
@@ -230,7 +230,7 @@ function LivestockDetail({ p }: { p: Packet }) {
             );
           })}
         </Section>
-        <Section title="Dry cows — waiting to calve">
+        <Section title="Cows resting before their calf">
           {l.dry_cows.length === 0 && (
             <p className="text-xs text-slate-500">None in the dry period.</p>
           )}
@@ -263,7 +263,7 @@ function MilkDetail({ p }: { p: Packet }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-3">
-        <Section title="Output">
+        <Section title="How much milk">
           <div className="mb-2">
             <div className="metric text-3xl text-slate-100">{(m.daily_milk_kg / 1000).toFixed(1)}</div>
             <div className="text-[11px] text-slate-500">tonnes per day</div>
@@ -273,10 +273,10 @@ function MilkDetail({ p }: { p: Packet }) {
           <Row label="From" value={`${m.lactating_head.toLocaleString()} head`} />
         </Section>
 
-        <Section title="Quality">
+        <Section title="Is the milk good enough to sell?">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="label">
-              <Term term={GLOSSARY["SCC"]}>Cell count</Term>
+              <Term term={GLOSSARY["SCC"]}>Cleanliness check</Term>
             </span>
             <span
               className={`metric text-lg ${m.bulk_scc_k > m.scc_limit_k ? "text-warn-400" : "text-sig-400"}`}
@@ -289,7 +289,7 @@ function MilkDetail({ p }: { p: Packet }) {
           <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{scc.line}</p>
         </Section>
 
-        <Section title="Cold chain">
+        <Section title="Is the milk kept cold?">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="label">Bulk tank</span>
             <span className={`metric text-lg ${m.bulk_temp_c > 6.5 ? "text-warn-400" : "text-sig-400"}`}>
@@ -305,13 +305,13 @@ function MilkDetail({ p }: { p: Packet }) {
         </Section>
       </div>
 
-      <Section title="Parlour" hint={`${m.milkings_per_day}× daily, ${m.units} units`}>
+      <Section title="Milking" hint={`${m.milkings_per_day}× daily, ${m.units} units`}>
         <Row label="Throughput" value={`${m.throughput_cows_per_hour.toFixed(0)} cows/h`} />
         <Row label="Lost time today" value={`${m.downtime_min_24h.toFixed(0)} min`} />
         <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{parl.line}</p>
       </Section>
 
-      <Section title="Powder plant">
+      <Section title="The milk powder factory">
         <Row label="Silo full" value={`${m.silo_fill_pct.toFixed(0)}%`} />
         <Row
           label="Status"
@@ -338,7 +338,7 @@ function InfraDetail({ p }: { p: Packet }) {
     <div className="space-y-4">
       <PlainNote plain={heat} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="The water" hint="the site's binding constraint">
+        <Section title="The underground water" hint="the site's binding constraint">
           <div className="mb-2 flex items-baseline justify-between">
             <span className="label">Yearly budget used</span>
             <span className={`metric text-lg ${e.aquifer_budget_used_pct >= 100 ? "text-crit-400" : e.aquifer_budget_used_pct >= 85 ? "text-warn-400" : "text-sig-400"}`}>
@@ -354,7 +354,7 @@ function InfraDetail({ p }: { p: Packet }) {
           <Row label="Wells completed" value="45" sub="186 permits" />
         </Section>
 
-        <Section title="Cooling hardware" hint="the real bottleneck on this site">
+        <Section title="Cooling for the cows" hint="the real bottleneck on this site">
           <Row label="Barns with misting" value="4 of 8" />
           <Row label="Currently running" value={e.misters_on ? "Yes" : "No"} />
           <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{mist.line}</p>
@@ -364,7 +364,7 @@ function InfraDetail({ p }: { p: Packet }) {
         </Section>
       </div>
 
-      <Section title="Pivots">
+      <Section title="The irrigation machines">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {e.pivots.map((piv) => (
             <div
@@ -396,7 +396,7 @@ function InfraDetail({ p }: { p: Packet }) {
         </div>
       </Section>
 
-      <Section title="Feed">
+      <Section title="Food for the cows">
         <Row label="In store" value={`${Math.round(p.logistics.feed_total_t).toLocaleString()} t`} />
         <Row label="Days of cover" value={`${(p.logistics.feed_hours_of_cover / 24).toFixed(1)}`} />
         <Row label="Daily requirement" value={`${p.logistics.daily_demand_t.toFixed(1)} t`} />

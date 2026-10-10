@@ -164,9 +164,9 @@ export function DecisionGate({
     <section className="card gate-live border-fuchsia-500/40 p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
         <span className="pill border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300">
-          Human decision required
+          Your decision
         </span>
-        <span className="label">Agent swarm halted at gate</span>
+        <span className="label">The farm is paused until you answer</span>
         <span className="ml-auto metric text-xs text-slate-500">{simTime}</span>
       </div>
 
@@ -175,8 +175,8 @@ export function DecisionGate({
           {plainHeadline(action)}
         </h2>
         <p className="mt-0.5 text-[11px] text-slate-500">
-          asked by the <span className="text-slate-400">{action.requested_by.replace("_", " ")}</span>{" "}
-          specialist &middot; {action.target}
+          suggested by the {action.requested_by.replace("_", " ")} specialist &middot;{" "}
+          <span className="text-slate-600">{action.target}</span>
         </p>
       </div>
 
