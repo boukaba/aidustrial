@@ -101,6 +101,44 @@ export interface Packet {
     silos: Silo[];
     tankers: Tanker[];
   };
+  crop_production: {
+    standing_t: number; harvested_t: number; cuts_completed: number;
+    protein_pct: number; water_stressed_ha: number; annual_target_t: number; status: string;
+    fields: {
+      field_id: string; pivot_id: number; crop: string; area_ha: number;
+      biomass_t_ha: number; standing_t: number; stage: string;
+      soil_moisture_pct: number; ready_for_cut: boolean; water_stress_days: number; health: string;
+    }[];
+  };
+  livestock: {
+    total_head: number; lactating_head: number; non_productive_head: number;
+    by_class: Record<string, number>; airlift_head: number; airlift_mix: Record<string, number>;
+    calf_mortality_7d: number; status: string;
+    calvings: { group_id: string; calvings: number; difficult_births: number; stillbirths: number }[];
+    heifers: {
+      group_id: string; head: number; age_months: number; avg_weight_kg: number;
+      target_weight_kg: number; weight_pct_of_target: number; daily_gain_kg: number;
+      pregnant: boolean; days_open: number; status: string;
+    }[];
+    calves: {
+      group_id: string; head: number; age_days: number; avg_weight_kg: number;
+      scours_rate_pct: number; mortality_7d: number; status: string;
+    }[];
+    dry_cows: { group_id: string; head: number; days_to_calving: number; bcs: number; status: string }[];
+  };
+  milk_production: {
+    daily_milk_kg: number; daily_shipped_kg: number; daily_loss_kg: number; capture_ratio: number;
+    lactating_head: number; milkings_per_day: number; units: number;
+    throughput_cows_per_hour: number; downtime_min_24h: number;
+    bulk_temp_c: number; bulk_tank_kg: number; bulk_fill_pct: number;
+    condenser_fouling_pct: number; bulk_scc_k: number; scc_limit_k: number;
+    quality_status: string; silo_fill_pct: number; powder_live: boolean; status: string;
+  };
+  board: {
+    message_id: string; kind: string; sender: string; recipient: string;
+    content: string; in_reply_to: string | null; severity: string;
+    domains: string[]; expects_reply: boolean;
+  }[];
   events: { tick: number; time: string; kind: string; message: string; severity: string }[];
 }
 
@@ -198,10 +236,29 @@ export const healthColor = (h: string) =>
 
 export const AGENT_COLOR: Record<string, string> = {
   orchestrator: "text-sky-300",
-  veterinarian: "text-emerald-300",
-  agronomist: "text-lime-300",
+  crop: "text-lime-300",
+  crop_irrigation: "text-lime-300",
+  agronomist: "text-teal-300",
+  calving: "text-emerald-300",
+  veterinarian: "text-emerald-400",
   maintenance: "text-amber-300",
   logistics: "text-violet-300",
+  milking: "text-cyan-300",
   human: "text-fuchsia-300",
   system: "text-crit-400",
 };
+
+export const KIND_COLOR: Record<string, string> = {
+  question: "border-sky-500/40 bg-sky-500/10 text-sky-300",
+  answer: "border-sig-500/40 bg-sig-500/10 text-sig-400",
+  objection: "border-crit-500/40 bg-crit-500/10 text-crit-400",
+  counter: "border-warn-500/40 bg-warn-500/10 text-warn-400",
+  alert: "border-warn-500/30 bg-warn-500/5 text-warn-400",
+  concession: "border-sig-500/30 bg-sig-500/5 text-sig-500",
+};
+
+export const AREA = {
+  crop: "CROP PRODUCTION",
+  livestock: "LIVESTOCK",
+  milk: "MILK PRODUCTION",
+} as const;

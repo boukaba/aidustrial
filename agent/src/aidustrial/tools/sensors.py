@@ -172,6 +172,138 @@ def get_degraded_assets() -> list[dict]:
     return _gw().degraded_assets()
 
 
+# --- crop tools ------------------------------------------------------------
+
+def crops() -> dict:
+    """Standing forage programme: growth, cut readiness, harvest history."""
+    w = _gw().world
+    c = w.crops
+    return {
+        "standing_t": c.standing_t(),
+        "harvested_t": c.harvested_this_season_t,
+        "cuts_completed": c.cuts_completed,
+        "protein_pct": c.protein_pct(),
+        "water_stressed_ha": c.water_stressed_ha(),
+        "annual_target_t": C.FORAGE_TONNES_ANNUAL_TARGET,
+        "status": c.status(),
+        "fields": [
+            {
+                "field_id": f.name,
+                "pivot_id": f.pivot_id,
+                "crop": f.crop.value,
+                "area_ha": round(f.area_ha, 1),
+                "biomass_t_ha": round(f.biomass_t_ha, 2),
+                "standing_t": round(f.standing_t, 1),
+                "stage": f.stage.value,
+                "soil_moisture_pct": round(
+                    next(
+                        (p.soil_moisture_pct for p in w.env.pivots if p.pid == f.pivot_id), 0.0
+                    ), 2,
+                ),
+                "ready_for_cut": f.ready_for_cut,
+                "water_stress_days": f.water_stress_days,
+                "health": f.health(),
+            }
+            for f in c.fields
+        ],
+    }
+
+
+# --- livestock tools -------------------------------------------------------
+
+def youngstock() -> dict:
+    """Herd structure by class, reproduction and calf welfare.
+
+    Surfaces the fact that most of the herd is non-productive: the airlifted
+    animals are heifers and will not milk for roughly 18 months.
+    """
+    w = _gw().world
+    ls = w.livestock
+    lact = w.herd.herd_total_head()
+    return {
+        "total_head": lact + ls.total_youngstock(),
+        "lactating_head": lact,
+        "non_productive_head": ls.total_youngstock(),
+        "by_class": ls.head_by_class(),
+        "airlift_head": sum(ls.airlift_mix.values()),
+        "airlift_mix": ls.airlift_mix,
+        "calf_mortality_7d": sum(g.mortality_7d for g in ls.youngstock if g.group_class.value == "calf"),
+        "status": ls.status(),
+        "groups_heifer": [
+            {
+                "group_id": g.group_id,
+                "head": g.head,
+                "age_months": round(g.age_days / 30.4, 1),
+                "avg_weight_kg": round(g.avg_weight_kg, 1),
+                "target_weight_kg": g.target_weight_kg,
+                "weight_pct_of_target": round(100 * g.avg_weight_kg / g.target_weight_kg, 1),
+                "daily_gain_kg": round(g.daily_gain_kg, 2),
+                "pregnant": g.pregnancy_confirmed,
+                "days_open": round(g.days_open, 1),
+                "status": g.status(),
+            }
+            for g in ls.youngstock
+            if g.group_class.value == "heifer"
+        ],
+        "groups_calf": [
+            {
+                "group_id": g.group_id,
+                "head": g.head,
+                "age_days": round(g.age_days, 1),
+                "avg_weight_kg": round(g.avg_weight_kg, 1),
+                "scours_rate_pct": round(100 * g.scours_cases / max(g.head, 1), 2),
+                "mortality_7d": g.mortality_7d,
+                "status": g.status(),
+            }
+            for g in ls.youngstock
+            if g.group_class.value == "calf"
+        ],
+        "groups_dry": [
+            {
+                "group_id": g.group_id,
+                "head": g.head,
+                "days_to_calving": round(g.days_to_first_calving, 1),
+                "bcs": g.body_condition_score,
+                "status": g.status(),
+            }
+            for g in ls.dry_cows()
+        ],
+    }
+
+
+# --- milk tools ------------------------------------------------------------
+
+def milk() -> dict:
+    """Parlour, cold chain, quality and powder plant."""
+    w = _gw().world
+    m = w.milk
+    lact = w.herd.herd_total_head()
+    return {
+        "daily_milk_kg": m.daily_milk_kg,
+        "daily_shipped_kg": m.daily_shipped_kg,
+        "daily_loss_kg": m.daily_loss_kg,
+        "capture_ratio": m.capture_ratio(),
+        "lactating_head": lact,
+        "milkings_per_day": m.parlour.milkings_per_day,
+        "units": m.parlour.units,
+        "throughput_cows_per_hour": m.parlour.throughput_cows_per_hour,
+        "cows_milked_today": m.parlour.cows_milked_today,
+        "downtime_min_24h": m.parlour.downtime_min_24h,
+        "holding_area_ehl": w.env.clock.effective_heat_load(w.env.day_weather),
+        "bulk_temp_c": m.tank.milk_temp_c,
+        "bulk_tank_kg": m.tank.level_kg,
+        "bulk_fill_pct": m.tank.fill_pct,
+        "condenser_fouling_pct": m.tank.condenser_fouling_pct,
+        "bulk_scc_k": m.bulk_scc_k,
+        "quality_status": m.quality_status(),
+        "silo_fill_pct": m.plant.silo_fill_pct,
+        "silo_t": m.plant.silo_t,
+        "powder_live": m.plant.running,
+        "mastitis_head_estimate": sum(g.mastitis_cases for g in w.herd.groups),
+        "status": m.status(),
+    }
+
+
 # --- logistics tools -------------------------------------------------------
 
 def get_feed_inventory() -> dict:
@@ -195,6 +327,9 @@ def get_airlift_schedule() -> dict:
 
 ALL_TOOLS: list[Any] = [
     get_environment_telemetry,
+    crops,
+    youngstock,
+    milk,
     get_water_budget,
     get_pivot_telemetry,
     get_herd_vitals,
@@ -211,6 +346,7 @@ __all__ = [
     "ALL_TOOLS",
     "SensorGateway",
     "bind",
+    "crops",
     "current",
     "get_airlift_schedule",
     "get_asset_health",
@@ -223,4 +359,6 @@ __all__ = [
     "get_herd_vitals",
     "get_pivot_telemetry",
     "get_water_budget",
+    "milk",
+    "youngstock",
 ]

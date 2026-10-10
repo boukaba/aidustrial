@@ -36,11 +36,15 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 
+from ..agents.mesh import Blackboard
 from . import constants as C
 from .clock import SimClock
+from .crops import CropState
 from .environment import EnvironmentState
 from .herd import HerdState
+from .livestock import LivestockState
 from .logistics import LogisticsState
+from .milk import MilkState
 
 Scenario = str
 
@@ -52,10 +56,20 @@ class World:
     seed: int = 20260911
     scenario: Scenario = "heatwave"
     env: EnvironmentState = field(init=False)
+    crops: CropState = field(init=False)
     herd: HerdState = field(init=False)
+    livestock: LivestockState = field(init=False)
+    milk: MilkState = field(init=False)
     log: LogisticsState = field(init=False)
+    #: The powder plant is not commissioned until the real timeline's first
+    #: production in late 2027, so it is opt-in during the demo.
+    powder_live: bool = False
     _rng: random.Random = field(init=False, repr=False)
     event_log: list[dict] = field(default_factory=list)
+    #: The agent blackboard. Held on the world because it is session-scoped
+    #: live state, not graph state -- the checkpointer serialises every channel
+    #: and a running thread would be meaningless to deserialise.
+    board: Blackboard = field(default_factory=Blackboard)
     #: (action, target) -> tick, so the orchestrator can suppress an immediate
     #: re-proposal of something it just did. A repair that is working does not
     #: need asking about again five minutes later.
@@ -64,7 +78,10 @@ class World:
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
         self.env = EnvironmentState.initial(self.seed)
+        self.crops = CropState.initial(self.seed)
         self.herd = HerdState.initial(self.seed)
+        self.livestock = LivestockState.initial(self.seed)
+        self.milk = MilkState()
         self.log = LogisticsState.initial(self.seed)
         # Keep all three clocks in lockstep.
         self.log.clock = self.env.clock
@@ -171,10 +188,53 @@ class World:
 
         # Environment first -- it determines heat load which the herd responds to.
         self.env.tick(self._rng)
+
+        # CROP PRODUCTION: growth is gated on the soil moisture the pivots
+        # actually delivered this tick.
+        soil_by_pivot = {p.pid: p.soil_moisture_pct for p in self.env.pivots}
+        self.crops.tick(self._rng, soil_by_pivot, ehl_before)
+
+        # LIVESTOCK
+        feed_available = self.log.feed_hours_of_cover() >= 24.0
         self.herd.tick(self._rng, ehl_before, self.env.day_weather)
+        self.livestock.tick(self._rng, ehl_before, feed_available)
+
+        # MILK PRODUCTION: capture what the lactating herd produced.
+        herd_scc = self._herd_scc()
+        self.milk.tick(self._rng, headcount, herd_scc, self.powder_live)
+
         self.log.tick(self._rng, headcount, herd_alive=headcount > 0)
 
+        # Route harvested forage into the silos when a field reaches its cut
+        # interval and a machine is available to take it off.
+        if self._harvest_available:
+            for f in self.crops.ready_fields():
+                res = self.crops.harvest(f)
+                self.log.silage_to_silo_t += res["ensiled_t"]
+                self._emit(
+                    "harvest",
+                    f"{res['field']} cut: {res['dry_t']:.1f} t DM ({res['crop']}) -> "
+                    f"{res['ensiled_t']:.1f} t ensiled",
+                    severity="info",
+                )
+
         return self.observe()
+
+    def _herd_scc(self) -> float:
+        """Herd somatic cell count, driven by the mastitis burden in the barns."""
+        groups = self.herd.groups or []
+        if not groups:
+            return 120.0
+        burden = sum(g.mastitis_cases for g in groups) / max(
+            sum(g.head for g in groups) / 100.0, 1.0
+        )
+        return max(90.0, 150.0 + burden * 2.2)
+
+    @property
+    def _harvest_available(self) -> bool:
+        """Forage equipment is shared with the maintenance crew. A degraded
+        fleet means cutting waits, which is a real forage-loss mechanism."""
+        return sum(1 for p in self.env.pivots if p.health() != "critical") >= 4
 
     def observe(self) -> dict:
         """The sensory packet. This is exactly what Layer 1 tools expose."""
@@ -289,7 +349,135 @@ class World:
                     for t in self.log.tankers
                 ],
             },
-            "events": self.event_log[-12:],
+            "crop_production": {
+                "standing_t": self.crops.standing_t(),
+                "harvested_t": self.crops.harvested_this_season_t,
+                "cuts_completed": self.crops.cuts_completed,
+                "protein_pct": self.crops.protein_pct(),
+                "water_stressed_ha": self.crops.water_stressed_ha(),
+                "annual_target_t": C.FORAGE_TONNES_ANNUAL_TARGET,
+                "status": self.crops.status(),
+                "fields": [
+                    {
+                        "field_id": f.name,
+                        "pivot_id": f.pivot_id,
+                        "crop": f.crop.value,
+                        "area_ha": round(f.area_ha, 1),
+                        "biomass_t_ha": round(f.biomass_t_ha, 2),
+                        "standing_t": round(f.standing_t, 1),
+                        "stage": f.stage.value,
+                        "soil_moisture_pct": round(
+                            next(
+                                (p.soil_moisture_pct for p in self.env.pivots if p.pid == f.pivot_id),
+                                0.0,
+                            ),
+                            2,
+                        ),
+                        "ready_for_cut": f.ready_for_cut,
+                        "water_stress_days": f.water_stress_days,
+                        "health": f.health(),
+                    }
+                    for f in self.crops.fields
+                ],
+            },
+            "livestock": {
+                "total_head": head + self.livestock.total_youngstock(),
+                "lactating_head": head,
+                "non_productive_head": self.livestock.total_youngstock(),
+                "by_class": self.livestock.head_by_class(),
+                "airlift_head": sum(self.livestock.airlift_mix.values()),
+                "airlift_mix": self.livestock.airlift_mix,
+                "calf_mortality_7d": sum(
+                    g.mortality_7d
+                    for g in self.livestock.youngstock
+                    if g.group_class.value == "calf"
+                ),
+                "status": self.livestock.status(),
+                "calvings": [
+                    {
+                        "group_id": c.group_id,
+                        "calvings": c.calvings,
+                        "difficult_births": c.difficult_births,
+                        "stillbirths": c.stillbirths,
+                    }
+                    for c in self.livestock.calvings
+                ],
+                "heifers": [
+                    {
+                        "group_id": g.group_id,
+                        "head": g.head,
+                        "age_months": round(g.age_days / 30.4, 1),
+                        "avg_weight_kg": round(g.avg_weight_kg, 1),
+                        "target_weight_kg": g.target_weight_kg,
+                        "weight_pct_of_target": round(100 * g.avg_weight_kg / g.target_weight_kg, 1),
+                        "daily_gain_kg": round(g.daily_gain_kg, 2),
+                        "pregnant": g.pregnancy_confirmed,
+                        "days_open": round(g.days_open, 1),
+                        "status": g.status(),
+                    }
+                    for g in self.livestock.youngstock
+                    if g.group_class.value == "heifer"
+                ],
+                "calves": [
+                    {
+                        "group_id": g.group_id,
+                        "head": g.head,
+                        "age_days": round(g.age_days, 1),
+                        "avg_weight_kg": round(g.avg_weight_kg, 1),
+                        "scours_rate_pct": round(100 * g.scours_cases / max(g.head, 1), 2),
+                        "mortality_7d": g.mortality_7d,
+                        "status": g.status(),
+                    }
+                    for g in self.livestock.youngstock
+                    if g.group_class.value == "calf"
+                ],
+                "dry_cows": [
+                    {
+                        "group_id": g.group_id,
+                        "head": g.head,
+                        "days_to_calving": round(g.days_to_first_calving, 1),
+                        "bcs": g.body_condition_score,
+                        "status": g.status(),
+                    }
+                    for g in self.livestock.dry_cows()
+                ],
+            },
+            "milk_production": {
+                "daily_milk_kg": self.milk.daily_milk_kg,
+                "daily_shipped_kg": self.milk.daily_shipped_kg,
+                "daily_loss_kg": self.milk.daily_loss_kg,
+                "capture_ratio": self.milk.capture_ratio(),
+                "lactating_head": head,
+                "milkings_per_day": self.milk.parlour.milkings_per_day,
+                "units": self.milk.parlour.units,
+                "throughput_cows_per_hour": self.milk.parlour.throughput_cows_per_hour,
+                "downtime_min_24h": self.milk.parlour.downtime_min_24h,
+                "bulk_temp_c": self.milk.tank.milk_temp_c,
+                "bulk_tank_kg": self.milk.tank.level_kg,
+                "bulk_fill_pct": self.milk.tank.fill_pct,
+                "condenser_fouling_pct": self.milk.tank.condenser_fouling_pct,
+                "bulk_scc_k": self.milk.bulk_scc_k,
+                "scc_limit_k": 200.0,
+                "quality_status": self.milk.quality_status(),
+                "silo_fill_pct": self.milk.plant.silo_fill_pct,
+                "powder_live": self.milk.plant.running,
+                "status": self.milk.status(),
+            },
+            "board": [
+                {
+                    "message_id": m.message_id,
+                    "kind": m.kind,
+                    "sender": m.sender,
+                    "recipient": m.recipient,
+                    "content": m.content,
+                    "in_reply_to": m.in_reply_to,
+                    "severity": m.severity,
+                    "domains": m.domains,
+                    "expects_reply": m.expects_reply,
+                }
+                for m in self.board.messages
+            ],
+            "events": self.event_log[-14:],
         }
 
     # --- actuation (only the gate-approved ones) -----------------------
@@ -384,6 +572,70 @@ class World:
                     p.bearing_temp_c *= 0.72
                     p.vibration_mm_s *= 0.55
                     return f"{p.name} repaired: nozzles cleared, bearing cooled"
+
+        # --- CROP PRODUCTION ---
+        if action == "harvest_field":
+            ids = [t.strip() for t in target.split(",") if t.strip()]
+            out = []
+            for f in self.crops.fields:
+                if ids and f.name not in ids and f.field_id not in ids:
+                    continue
+                if f.biomass_t_ha < 2.5:
+                    out.append(f"{f.name}: nothing worth cutting ({f.biomass_t_ha:.1f} t/ha)")
+                    continue
+                res = self.crops.harvest(f)
+                self.log.silage_to_silo_t += res["ensiled_t"]
+                out.append(f"{res['field']} {res['dry_t']:.0f} t DM -> {res['ensiled_t']:.0f} t ensiled")
+                self._emit("harvest", f"{res['field']} cut: {res['dry_t']:.1f} t DM ({res['crop']})", "info")
+            return "; ".join(out) or "no fields matched"
+
+        # --- MILK PRODUCTION ---
+        if action == "service_parlour":
+            self.milk.parlour.downtime_min_24h = max(
+                0.0, self.milk.parlour.downtime_min_24h - 25.0
+            )
+            return f"Parlour serviced; downtime now {self.milk.parlour.downtime_min_24h:.0f} min/24h"
+
+        if action == "clean_condenser":
+            self.milk.tank.condenser_fouling_pct = 6.0
+            self.milk.tank.milk_temp_c = min(self.milk.tank.milk_temp_c, 3.8)
+            return f"Condenser cleaned; bulk tank now {self.milk.tank.milk_temp_c:.1f}C"
+
+        if action == "cull_chronic_mastitis":
+            removed = 0
+            for g in self.herd.groups:
+                if g.mastitis_cases > 0:
+                    removed += min(g.mastitis_cases, max(1, g.head // 500))
+                    g.mastitis_cases = max(0, g.mastitis_cases - max(1, g.head // 500))
+                    g.head = max(0, g.head - max(1, g.head // 500))
+            self.milk.bulk_scc_k = max(120.0, self.milk.bulk_scc_k - 40.0)
+            return f"Culled {removed} chronic mastitis case(s); bulk SCC now {self.milk.bulk_scc_k:.0f}k"
+
+        if action == "halt_intake":
+            self.milk.plant.running = False
+            return "Powder intake halted to protect the silo from overfill"
+
+        # --- LIVESTOCK ---
+        if action == "isolate_calves":
+            ids = [t.strip() for t in target.split(",") if t.strip()]
+            out = []
+            for g in self.livestock.youngstock:
+                if ids and g.group_id not in ids:
+                    continue
+                if g.scours_cases == 0 and g.group_class.value != "calf":
+                    continue
+                g.scours_cases = max(0, g.scours_cases - max(1, g.scours_cases // 2))
+                g.mortality_7d = max(0, g.mortality_7d - 1)
+                g.treatment_success_pct = min(99.0, g.treatment_success_pct + 3.0)
+                out.append(f"{g.group_id} isolated ({g.head:,} hd)")
+            return "; ".join(out) or "no calf groups matched"
+
+        if action == "boost_heifer_rations":
+            for g in self.livestock.youngstock:
+                if g.group_class.value == "heifer":
+                    g.daily_gain_kg = min(g.daily_gain_kg + 0.25, 1.3)
+                    g.body_condition_score = min(5.0, g.body_condition_score + 0.15)
+            return "Heifer rations boosted; growth rate and body condition lifted across heifer groups"
 
         if action == "restart_inlet":
             for s in self.log.silos:

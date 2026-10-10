@@ -141,6 +141,8 @@ class LogisticsState:
     daily_feed_demand_t: float = 0.0
     purchased_feed_t: float = 0.0
     inbound_shipments: int = 0
+    #: Silo tonnage credited by the crop harvest pipeline this run.
+    silage_to_silo_t: float = 0.0
 
     @classmethod
     def initial(cls, seed: int = 20260911) -> LogisticsState:
@@ -238,6 +240,16 @@ class LogisticsState:
                 s.fill_t = max(0.0, s.fill_t - draw)
                 if s.inlet_operational:
                     s.fill_t = min(s.capacity_t, s.fill_t + rng.uniform(2.0, 9.0))
+            # Harvested forage lands in a forage silo rather than trickling in.
+            if self.silage_to_silo_t > 0:
+                for s in self.silos:
+                    if s.feed_type in ("corn_silage", "alfalfa", "sorghum_sudangrass"):
+                        room = s.capacity_t - s.fill_t
+                        if room > 0:
+                            moved = min(room, self.silage_to_silo_t)
+                            s.fill_t += moved
+                            self.silage_to_silo_t -= moved
+                self.silos[0].inlet_operational = True
 
             # Purchased feed covers the pre-harvest gap.
             deficit = max(0.0, self.daily_feed_demand_t - sum(s.inlet_rate_t_per_day for s in self.silos))

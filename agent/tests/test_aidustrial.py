@@ -19,32 +19,30 @@ from aidustrial.agents.specialists import (
     VeterinarianAgent,
 )
 from aidustrial.graph.orchestrator import GRAPH
-from aidustrial.graph.state import FarmState
 from aidustrial.tools import sensors
-from aidustrial.tools.actions import Action, score_risk, score_urgency
+from aidustrial.tools.actions import Action, score_risk
 from aidustrial.twin import constants as C
 from aidustrial.twin.clock import SimClock
 from aidustrial.twin.world import World
-
 
 # --- clock / diurnal behaviour ---------------------------------------------
 
 def test_diurnal_curve_is_a_full_24h_cycle():
     """A partial-span cosine cliffs at dusk instead of holding a shoulder."""
-    c = SimClock(tick=int(15 * 2))
+    c = SimClock(tick=15 * 2)
     peak = c.temperature_c()
     assert peak == pytest.approx(C.TEMP_C_DAY_PEAK, abs=0.5)
 
     # Evening must still be warm: a broken curve collapses here.
-    c19 = SimClock(tick=int(19 * 2))
-    c21 = SimClock(tick=int(21 * 2))
+    c19 = SimClock(tick=19 * 2)
+    c21 = SimClock(tick=21 * 2)
     assert c19.temperature_c() > c21.temperature_c()
     assert c19.temperature_c() > C.TEMP_C_DAY_PEAK - 12
 
 
 def test_air_thi_stays_low_in_arid_air():
     """The honesty claim: 43C at ~10% RH is NOT severe heat stress by air THI."""
-    c = SimClock(tick=int(15 * 2))
+    c = SimClock(tick=15 * 2)
     assert c.temperature_c() == pytest.approx(43, abs=1)
     assert c.th_i() < C.THI_HEAT_STRESS_ONSET
 
@@ -52,14 +50,14 @@ def test_air_thi_stays_low_in_arid_air():
 def test_radiant_load_is_what_creates_the_risk():
     """Air THI alone stays under threshold; adding exposure-weighted solar
     crosses it. This is the whole reason the model exists."""
-    noon = SimClock(tick=int(12 * 2))
+    noon = SimClock(tick=12 * 2)
     assert noon.th_i() < C.THI_HEAT_STRESS_ONSET
     assert noon.effective_heat_load(exposure=0.82) > C.THI_HEAT_STRESS_ONSET
 
 
 def test_solar_peaks_at_noon_not_at_peak_temperature():
-    noon = SimClock(tick=int(12 * 2)).solar_load()
-    fifteen = SimClock(tick=int(15 * 2)).solar_load()
+    noon = SimClock(tick=12 * 2).solar_load()
+    fifteen = SimClock(tick=15 * 2).solar_load()
     assert noon > fifteen
 
 
@@ -231,9 +229,8 @@ def test_graph_halts_at_the_human_gate():
 
 
 def test_resuming_requires_a_decision():
-    from langgraph.types import Command
-
     from langgraph.checkpoint.memory import MemorySaver
+    from langgraph.types import Command
 
     app = GRAPH.compile(checkpointer=MemorySaver())
     w = World()
@@ -280,3 +277,131 @@ def test_approving_applies_the_action():
         guard += 1
     assert out["executed"], "approval must produce an execution record"
     assert out["executed"][0]["approved_by"] == "farm_director"
+
+# --- three production areas -------------------------------------------------
+
+def test_world_exposes_three_production_areas():
+    w = World()
+    w.step()
+    p = w.observe()
+    assert "crop_production" in p and p["crop_production"]["fields"]
+    assert "livestock" in p and "milk_production" in p
+
+
+def test_livestock_is_mostly_non_productive():
+    """The economics of the project: most head eats feed and makes no milk."""
+    w = World()
+    w.step()
+    l = w.observe()["livestock"]
+    assert l["non_productive_head"] > 0
+    assert l["non_productive_head"] < l["total_head"]
+
+
+def test_airlift_is_mostly_heifers():
+    from aidustrial.twin.livestock import AIRLIFT_ARRIVAL_CLASS, HerdClass
+
+    assert AIRLIFT_ARRIVAL_CLASS[HerdClass.HEIFER] > 0.5
+    assert AIRLIFT_ARRIVAL_CLASS[HerdClass.DRY] > 0.1
+
+
+def test_forage_growth_stops_below_wilting_point():
+    from aidustrial.twin.crops import CropType, ForageField
+
+    # Mid-season: the logistic accrual curve is still near zero at emergence,
+    # so a field has to be part-way through its interval before it grows at all.
+    f = ForageField(field_id="X", pivot_id=1, crop=CropType.CORN_SILAGE, area_ha=50.0,
+                    days_since_sowing=48)
+    dry = f.growth_rate_per_day(5.0, 40.0)
+    wet = f.growth_rate_per_day(25.0, 40.0)
+    assert dry == 0.0, "growth must be exactly zero below the wilting point"
+    assert wet > dry
+
+
+def test_cut_requires_something_on_the_ground():
+    from aidustrial.twin.crops import CropType, ForageField
+
+    f = ForageField(field_id="X", pivot_id=1, crop=CropType.CORN_SILAGE, area_ha=50.0,
+                    days_since_cut=200, biomass_t_ha=0.1)
+    assert not f.ready_for_cut
+
+
+# --- the mesh ---------------------------------------------------------------
+
+def test_agents_post_to_a_shared_board():
+    from aidustrial.graph.orchestrator import ALL
+    from aidustrial.tools import sensors as sg
+
+    w = World()
+    for _ in range(216):
+        w.step()
+    sg.bind(w)
+    for a in ALL:
+        a.survey(w.board)
+    assert w.board.messages, "surveys must broadcast to the board"
+    assert any(m.kind == "question" for m in w.board.messages), \
+        "at least one agent must ask a peer something"
+
+
+def test_mesh_routes_only_agents_actually_addressed():
+    from aidustrial.graph.orchestrator import ALL
+    from aidustrial.tools import sensors as sg
+
+    w = World()
+    for _ in range(216):
+        w.step()
+    sg.bind(w)
+    for a in ALL:
+        a.survey(w.board)
+    open_msgs = w.board.open_threads()
+    assert open_msgs
+    addressed = {m.recipient for m in open_msgs}
+    for name in addressed:
+        agent = next(a for a in ALL if a.name == name)
+        agent.respond(w.board, agent_specific_inbox(w.board, name))
+    assert not w.board.open_threads(), "responders must close their threads"
+
+
+def agent_specific_inbox(board, agent_name):
+    return board.inbox(agent_name)
+
+
+def test_board_clears_between_rounds():
+    from aidustrial.graph.orchestrator import ALL
+    from aidustrial.tools import sensors as sg
+
+    w = World()
+    for _ in range(216):
+        w.step()
+    sg.bind(w)
+    for a in ALL:
+        a.survey(w.board)
+    assert w.board.messages
+    w.board.messages.clear()
+    assert not w.board.messages
+
+
+def test_every_agent_declares_domains_and_can_respond():
+    from aidustrial.graph.orchestrator import ALL
+
+    assert len(ALL) >= 7
+    for a in ALL:
+        assert a.domains, f"{a.name} declares no domains"
+        assert callable(getattr(a, "survey", None)), f"{a.name} cannot survey"
+        assert callable(getattr(a, "respond", None)), f"{a.name} cannot respond"
+
+
+def test_graph_runs_both_deliberation_rounds():
+    from langgraph.checkpoint.memory import MemorySaver
+
+    from aidustrial.graph.orchestrator import GRAPH
+
+    app = GRAPH.compile(checkpointer=MemorySaver())
+    w = World()
+    for _ in range(216):
+        w.step()
+    sensors.bind(w)
+    out = app.invoke({"max_turns": 1, "turn": 0}, {"configurable": {"thread_id": "mesh-t"}})
+    phases = {t["phase"] for t in out["trace"]}
+    assert "survey" in phases
+    assert "mesh" in phases
+    assert "deliberate" in phases

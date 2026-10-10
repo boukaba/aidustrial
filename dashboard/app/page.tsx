@@ -1,6 +1,8 @@
 "use client";
 
+import { CropArea, LivestockArea, MilkArea } from "@/components/Areas";
 import { DecisionGate, useFarmStream } from "@/components/Control";
+import { MeshBoard } from "@/components/Mesh";
 import {
   EventsPanel,
   FindingsPanel,
@@ -61,28 +63,39 @@ export default function Command() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_1fr_1.1fr]">
+      {/* Three production areas, one per column. */}
+      <div className="grid gap-4 xl:grid-cols-3">
+        <CropArea p={packet} />
+        <LivestockArea p={packet} />
+        <MilkArea p={packet} />
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_1.1fr]">
         <div className="space-y-4">
+          <WaterPanel p={packet} />
           <HerdPanel p={packet} />
           <EventsPanel p={packet} />
         </div>
         <div className="space-y-4">
-          <WaterPanel p={packet} />
           <LogisticsPanel p={packet} />
+          <FindingsPanel findings={findings} />
         </div>
         <div className="space-y-4">
+          <MeshBoard p={packet} />
           <TraceFeed trace={trace} />
-          <FindingsPanel findings={findings} />
         </div>
       </div>
 
       <footer className="mt-6 border-t border-ink-800 pt-3">
         <p className="text-[10px] leading-relaxed text-slate-600">
-          Digital twin seeded with researched Baladna Algeria parameters (117,000 ha
-          concession, 270,000 head target, 33,250 head Phase 1 infrastructure, 45 wells
-          / 186 permits, Albien non-renewable aquifer, 30,000-head US airlift). The Adrar
-          site is under construction — first milk powder targeted late 2027 — so all
-          telemetry is simulated and labelled as such. See{" "}
+          Three production areas — crop, livestock, milk — behind a seven-agent mesh.
+          Seven specialists share one blackboard and answer each other&apos;s questions
+          across two rounds; the orchestrator routes, detects convergence, and holds the
+          gate. Digital twin seeded with researched Baladna Algeria parameters (117,000 ha
+          concession, 270,000 head target, 33,250 head Phase 1 infrastructure, 45 wells /
+          186 permits, Albien non-renewable aquifer, 30,000-head US airlift of mostly
+          heifers). The Adrar site is under construction — first milk powder targeted late
+          2027 — so all telemetry is simulated and labelled as such. See{" "}
           <code className="text-slate-500">docs/DATA_PROVENANCE.md</code> for the full
           sourced / derived / modelled split.
         </p>

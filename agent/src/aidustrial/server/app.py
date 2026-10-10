@@ -99,6 +99,16 @@ class Session:
             "feed_hours": l["feed_hours_of_cover"],
             "airlift_delivered": l["airlift"]["delivered"],
             "airlift_target": l["airlift"]["target"],
+            "crop_standing_t": p["crop_production"]["standing_t"],
+            "crop_fields_wilting": sum(
+                1 for f in p["crop_production"]["fields"]
+                if f["soil_moisture_pct"] <= 9
+            ),
+            "non_productive_head": p["livestock"]["non_productive_head"],
+            "total_head": p["livestock"]["total_head"],
+            "milk_t_day": p["milk_production"]["daily_milk_kg"] / 1000,
+            "bulk_scc_k": p["milk_production"]["bulk_scc_k"],
+            "mesh_messages": len(p.get("board") or []),
         }
 
     def push_trace(self, events: list[dict]) -> None:

@@ -26,19 +26,40 @@ import time
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
+from ..agents.domains import ALL_DOMAIN_AGENTS
 from ..agents.specialists import ALL_AGENTS
 from ..tools import sensors
 from ..tools.actions import Action, Decision
 from ..twin import constants as C
 from .state import FarmState, trace_event
 
-AGENT_BY_NAME = {a.name: a for a in ALL_AGENTS}
+ALL = list(ALL_AGENTS) + list(ALL_DOMAIN_AGENTS)
+AGENT_BY_NAME = {a.name: a for a in ALL}
+#: The agronomist owns irrigation; the crop specialist owns forage production.
+#: Both wake on soil or water signals, so the router consults both.
+DOMAIN_TRIGGERS: dict[str, str] = {
+    "crop": "crop", "irrigation": "agronomist", "soil": "agronomist",
+    "forage": "crop", "water": "agronomist",
+    "livestock": "calving", "youngstock": "calving", "reproduction": "calving",
+    "herd_health": "veterinarian", "heat": "veterinarian", "cooling": "veterinarian",
+    "milk": "milking", "parlour": "milking", "quality": "milking",
+    "cooling_chain": "milking", "powder": "milking",
+    "assets": "maintenance", "maintenance": "maintenance",
+    "feed": "logistics", "transport": "logistics", "airlift": "logistics",
+}
 
 #: Which specialist owns which implication. This mapping IS the routing policy.
 IMPLICATION_ROUTES: dict[str, str] = {
     "start_pivot": "agronomist",
     "shed_pivot": "agronomist",
     "repair_pivot": "maintenance",
+    "harvest_field": "crop",
+    "boost_heifer_rations": "calving",
+    "isolate_calves": "calving",
+    "service_parlour": "milking",
+    "clean_condenser": "milking",
+    "cull_chronic_mastitis": "milking",
+    "halt_intake": "milking",
     "enable_misters": "veterinarian",
     "shed_load": "veterinarian",
     "restart_inlet": "maintenance",
@@ -98,17 +119,53 @@ def triage(state: FarmState) -> dict:
         if env["heat_stress_band"] == "severe":
             urgency.append("severe heat load")
 
-    wilting = sum(
-        1 for m in env["soil_moisture_pct"] if m <= C.SOIL_MOISTURE_WILTING_PCT
-    )
-    if wilting or env["aquifer_budget_used_pct"] >= 85:
+    crop = sensors.crops()
+    livestock = sensors.youngstock()
+    milk = sensors.milk()
+
+    wilting = sum(1 for f in crop["fields"] if f["soil_moisture_pct"] <= C.SOIL_MOISTURE_WILTING_PCT)
+    if wilting or env["aquifer_budget_used_pct"] >= 85 or crop["water_stressed_ha"] > 0:
         focus.append("agronomist")
+        if crop["water_stressed_ha"] > 0:
+            focus.append("crop")
         reasons.append(
             f"{wilting} field(s) at wilting point; aquifer "
             f"{env['aquifer_budget_used_pct']:.0f}% of annual envelope"
         )
         if env["aquifer_budget_used_pct"] >= 100:
             urgency.append("aquifer over annual envelope")
+
+    ready = [f for f in crop["fields"] if f["ready_for_cut"]]
+    if ready or any(f["health"] != "nominal" for f in crop["fields"]):
+        if "crop" not in focus:
+            focus.append("crop")
+        reasons.append(f"{len(ready)} forage field(s) cut-ready; programme status {crop['status']}")
+
+    deficient = [g for g in livestock["groups_heifer"] if g["weight_pct_of_target"] < 88.0]
+    sick_calves = [g for g in livestock["groups_calf"] if g["scours_rate_pct"] > 6.0]
+    if deficient or sick_calves or livestock["status"] != "nominal":
+        focus.append("calving")
+        reasons.append(
+            f"{sum(g['head'] for g in deficient):,} heifers under breeding weight; "
+            f"{livestock['non_productive_head']:,} non-productive head"
+        )
+        if sick_calves:
+            urgency.append("calf morbidity above threshold")
+
+    if (
+        milk["downtime_min_24h"] > 60
+        or milk["bulk_scc_k"] > 200
+        or milk["bulk_temp_c"] > 6.5
+        or milk["silo_fill_pct"] > 92
+        or milk["status"] != "nominal"
+    ):
+        focus.append("milking")
+        reasons.append(
+            f"SCC {milk['bulk_scc_k']:.0f}k, bulk {milk['bulk_temp_c']:.1f}C, "
+            f"downtime {milk['downtime_min_24h']:.0f}min"
+        )
+        if milk["bulk_temp_c"] > 8.0:
+            urgency.append("bulk milk above rejection temperature")
 
     if any(p["health"] != "nominal" for p in env["pivots"]) or any(
         not s["inlet_operational"] for s in log["silos"]
@@ -145,71 +202,110 @@ def triage(state: FarmState) -> dict:
 
 
 def wake_specialists(state: FarmState) -> dict:
-    """Run each focused agent. Parallel in intent; sequential in practice so the
-    trace reads cleanly on the dashboard."""
+    """ROUND 1 -- survey. Each focused agent reads the site and broadcasts what
+    it sees onto the shared blackboard, alongside its own proposals."""
     focus = state.get("agents_awake") or []
-    findings, proposals, trace = [], [], []
+    world = sensors.current().world
+    board = world.board
+    board.messages.clear()
 
+    findings, proposals, trace = [], [], []
     for name in focus:
         agent = AGENT_BY_NAME.get(name)
         if agent is None:
             continue
-        f, a = agent.run()
-        findings.extend(f)
-        proposals.extend(a)
-        if f or a:
-            trace.append(
-                trace_event(
-                    name,
-                    "reason",
-                    (
-                        f"{len(f)} finding(s), {len(a)} proposal(s). "
-                        + (f"Top: {f[0].summary}" if f else "No actionable finding.")
-                    ),
-                    findings=[x.summary for x in f],
-                    proposals=[x.action for x in a],
-                )
-            )
-        else:
-            trace.append(trace_event(name, "reason", "Surveyed site. Nothing actionable."))
-
-    return {"findings": findings, "proposals": proposals, "trace": trace}
-
-
-def consult(state: FarmState) -> dict:
-    """Cross-consult. A veterinarian finding does not by itself move irrigation;
-    the agronomist has to say whether water can be reallocated to help the herd.
-
-    This is the node that makes the swarm a swarm rather than four dashboards.
-    """
-    focus = set(state.get("agents_awake") or [])
-    extra: list[str] = []
-    for name in list(focus):
-        for peer in CROSS_CONSULT.get(name, []):
-            if peer not in focus and peer not in extra:
-                extra.append(peer)
-    if not extra:
-        return {"trace": [trace_event("orchestrator", "consult", "No cross-consult needed.")]}
-
-    findings, proposals, trace = [], [], []
-    for name in extra:
-        agent = AGENT_BY_NAME[name]
-        f, a = agent.run()
+        f, a = agent.survey(board)
         findings.extend(f)
         proposals.extend(a)
         trace.append(
             trace_event(
-                name,
-                "consult",
-                f"Consulted by {', '.join(sorted(focus))}: "
-                + (f[0].summary if f else "no additional findings"),
+                name, "survey",
+                (f"{len(f)} finding(s), {len(a)} proposal(s). "
+                 + (f"Top: {f[0].summary}" if f else "Nothing actionable.")),
+                domains=list(getattr(agent, "domains", ())),
             )
         )
     return {"findings": findings, "proposals": proposals, "trace": trace}
 
 
+def consult(state: FarmState) -> dict:
+    """ROUND 2 -- respond. Only agents actually addressed by an open thread are
+    woken. This is what makes it a mesh rather than a fan-out: each agent is
+    answering a specific question from a specific peer."""
+    world = sensors.current().world
+    board = world.board
+    open_threads = board.open_threads()
+    if not open_threads:
+        return {"trace": [trace_event("orchestrator", "mesh",
+                                      "No open questions on the board. Round 2 skipped.")]}
+
+    responders: dict[str, list] = {}
+    for m in open_threads:
+        responders.setdefault(m.recipient, []).append(m)
+
+    trace = [
+        trace_event(
+            "orchestrator", "mesh",
+            f"{len(open_threads)} open thread(s); routing to "
+            + ", ".join(f"{k} ({len(v)})" for k, v in responders.items()),
+        )
+    ]
+    for name, inbox in responders.items():
+        agent = AGENT_BY_NAME.get(name)
+        if agent is None:
+            continue
+        _f, _a = agent.respond(board, inbox)
+        trace.append(
+            trace_event(
+                name, "respond",
+                f"Answered {len(inbox)} message(s) from "
+                + ", ".join(sorted({m.sender for m in inbox})),
+            )
+        )
+    return {"trace": trace}
+
+
+def deliberate(state: FarmState) -> dict:
+    """The orchestrator's only judgement: did the swarm converge, and what is
+    still contested? It routes and summarises -- it does not resolve technical
+    disagreements between specialists."""
+    board = sensors.current().world.board
+    answered = {m.in_reply_to for m in board.messages if m.in_reply_to}
+    unresolved = [m for m in board.messages if m.message_id not in answered and m.expects_reply]
+    contested = board.contested()
+
+    if not board.messages:
+        state_line = "Board empty."
+    elif unresolved:
+        state_line = (
+            f"{len(board.messages)} messages, {len(unresolved)} still unanswered "
+            f"({', '.join(f'{m.sender}->{m.recipient}' for m in unresolved)})."
+        )
+    elif contested:
+        state_line = f"{len(board.messages)} messages, {len(contested)} contested thread(s)."
+    else:
+        state_line = (
+            f"{len(board.messages)} messages, all threads resolved -- swarm converged."
+        )
+
+    return {
+        "trace": [
+            trace_event("orchestrator", "deliberate", state_line,
+                        converged=not unresolved and not contested,
+                        messages=len(board.messages),
+                        unresolved=len(unresolved),
+                        contested=len(contested))
+        ]
+    }
+
+
 def _batch(actions: list[Action]) -> list[Action]:
-    """Merge same-action proposals into one compound decision."""
+    """Merge same-action proposals into ONE compound decision.
+
+    Six pivots at wilting point is one decision, not six. Asking the same
+    question six times trains the director to approve reflexively, which
+    defeats the whole point of human-in-the-loop.
+    """
     out: list[Action] = []
     by_action: dict[str, list[Action]] = {}
     for a in actions:
@@ -219,11 +315,9 @@ def _batch(actions: list[Action]) -> list[Action]:
         if len(group) == 1:
             out.append(group[0])
             continue
-        group.sort(key=lambda a: a.target)
+        targets = sorted({t for a in group for t in a.target.split(",") if t})
         head = group[0]
-        targets = [a.target for a in group]
-        heads = sorted({a.evidence.get("headcount_affected", 0) for a in group})
-        total_head = max(heads)
+        total_head = max(a.evidence.get("headcount_affected", 0) for a in group)
         water = sum(a.evidence.get("water_m3h", 0.0) for a in group)
         out.append(
             Action(
@@ -437,6 +531,7 @@ def build_graph():
     g.add_node("triage", triage)
     g.add_node("wake", wake_specialists)
     g.add_node("consult", consult)
+    g.add_node("deliberate", deliberate)
     g.add_node("gate", gate)
     g.add_node("execute", execute)
     g.add_node("human_gate", human_gate)
@@ -446,7 +541,8 @@ def build_graph():
     g.add_edge("sense", "triage")
     g.add_edge("triage", "wake")
     g.add_edge("wake", "consult")
-    g.add_edge("consult", "gate")
+    g.add_edge("consult", "deliberate")
+    g.add_edge("deliberate", "gate")
 
     # After gate: if anything needs a human, suspend there; otherwise execute.
     g.add_conditional_edges(
@@ -472,7 +568,8 @@ GRAPH = build_graph()
 
 __all__ = [
     "AGENT_BY_NAME",
-    "CROSS_CONSULT",
+    "ALL",
+    "DOMAIN_TRIGGERS",
     "GRAPH",
     "IMPLICATION_ROUTES",
     "Action",

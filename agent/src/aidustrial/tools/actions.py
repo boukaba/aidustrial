@@ -45,7 +45,9 @@ class Action:
         # the same key. Without this, a proposal for {B05,B06,B07} and one for
         # {B07,B05,B06} are different strings, so dedup and the cooldown both
         # miss them and the audit log fills with permutations of one decision.
-        if "," in self.target:
+        if self.target is not None and not isinstance(self.target, str):
+            self.target = str(self.target)
+        if self.target and "," in self.target:
             self.target = ",".join(sorted(t.strip() for t in self.target.split(",") if t.strip()))
         if not self.action_id:
             stamp = f"{self.action}|{self.target}|{self.requested_by}|{time.time_ns()}"

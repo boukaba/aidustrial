@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from ..tools import sensors
 from ..tools.actions import Action, Finding, score_risk, score_urgency
 from ..twin import constants as C
+from .mesh import Blackboard, Kind, Message
 
 
 @dataclass
@@ -240,6 +241,38 @@ class AgronomistAgent:
             self.memory.note(f"soil OK, aquifer {water['budget_used_pct']:.0f}% of envelope")
         return findings, actions
 
+    domains: tuple[str, ...] = ("irrigation", "soil", "water")
+
+    def survey(self, board: Blackboard):
+        findings, actions = self.run()
+        self._post_context(board)
+        return findings, actions
+
+    def respond(self, board: Blackboard, inbox: list[Message]):
+        for m in inbox:
+            if "cooling" in m.domains:
+                board.post(self.name, Kind.ANSWER, (
+                    "Cooling does not compete with irrigation for water: four misting banks draw "
+                    "~53 m3/h against ~27,000 m3/h for the pivot set. The binding constraint on "
+                    "cooling is hardware, not aquifer. I will not trade irrigation for it."
+                ), to=m.sender, in_reply_to=m.message_id, domains=("water", "cooling"))
+            elif "forage" in m.domains or m.sender == "crop":
+                w = sensors.get_water_budget()
+                board.post(self.name, Kind.ANSWER, (
+                    f"I can hold the pivot programme at {w['water_use_m3h']:.0f} m3/h, projecting "
+                    f"{w['budget_used_pct']:.0f}% of the annual envelope. Any forage purchase that "
+                    "avoids irrigation is welcome; any new water claim is not."
+                ), to=m.sender, in_reply_to=m.message_id, domains=("water", "forage"), evidence=w)
+        return [], []
+
+    def _post_context(self, board: Blackboard) -> None:
+        w = sensors.get_water_budget()
+        board.post(self.name, Kind.ALERT, (
+            f"Irrigation draws {w['water_use_m3h']:.0f} m3/h, projecting "
+            f"{w['budget_used_pct']:.0f}% of the annual {w['aquifer_kind']} envelope."
+        ), to="*", domains=("water", "irrigation"), evidence=w)
+
+
 
 # ---------------------------------------------------------------------------
 # VETERINARIAN -- herd health and heat
@@ -428,6 +461,47 @@ class VeterinarianAgent:
 
         return findings, actions
 
+    domains: tuple[str, ...] = ("herd_health", "heat", "cooling")
+
+    def survey(self, board: Blackboard):
+        findings, actions = self.run()
+        self._post_context(board)
+        return findings, actions
+
+    def respond(self, board: Blackboard, inbox: list[Message]):
+        for m in inbox:
+            if "quality" in m.domains or m.sender == "milking":
+                h = sensors.get_herd_vitals()
+                worst = sorted(h["groups"], key=lambda g: g["rumination_pct"])[:2]
+                board.post(self.name, Kind.ANSWER, (
+                    "Mastitis burden concentrates in "
+                    + ", ".join(f"{g['name']} ({g['mastitis_cases']} cases)" for g in worst)
+                    + ". It originates in the barns: I can treat and cull it, the plant cannot. "
+                    "Bulk SCC will keep following me downstream."
+                ), to=m.sender, in_reply_to=m.message_id, domains=("quality", "herd_health"))
+            elif "parlour" in m.domains or m.sender == "milking":
+                board.post(self.name, Kind.ANSWER, (
+                    "Extended standing in an unshaded desert yard is the worst heat exposure on "
+                    "this site, worse than the barns. Parlour downtime is a herd heat event."
+                ), to=m.sender, in_reply_to=m.message_id, domains=("heat", "parlour"))
+            elif m.sender == "calving" and "youngstock" in m.domains:
+                board.post(self.name, Kind.ANSWER, (
+                    "Youngstock carry less body mass to dissipate heat than lactating cows. If the "
+                    "veterinary budget is fixed, calves lose first -- cheapest head to lose."
+                ), to=m.sender, in_reply_to=m.message_id, domains=("youngstock", "heat"))
+        return [], []
+
+    def _post_context(self, board: Blackboard) -> None:
+        h = sensors.get_herd_vitals()
+        env = sensors.get_environment_telemetry()
+        board.post(self.name, Kind.ALERT, (
+            f"Rumination deficit {h['rumination_deficit_pct']:.1f}% at effective heat load "
+            f"{env['effective_heat_load']:.0f} ({env['heat_stress_band']}); "
+            f"{len(sensors.get_barns_without_cooling()['barns'])} barns have no misting."
+        ), to="*", domains=("herd_health", "heat"), severity="medium",
+           evidence={"deficit": h["rumination_deficit_pct"]})
+
+
 
 # ---------------------------------------------------------------------------
 # MAINTENANCE -- machinery
@@ -554,6 +628,23 @@ class MaintenanceAgent:
 
         return findings, actions
 
+    domains: tuple[str, ...] = ("assets", "maintenance")
+
+    def survey(self, board: Blackboard):
+        return self.run()
+
+    def respond(self, board: Blackboard, inbox: list[Message]):
+        for m in inbox:
+            if "cooling_chain" in m.domains or m.sender == "milking":
+                board.post(self.name, Kind.ANSWER, (
+                    "Bulk-tank refrigerant duty depends on condenser fouling, which is a "
+                    "scheduled-cleaning item, not a capacity shortfall. A clean condenser pulls a "
+                    "45C ambient tank back to 3C in under an hour."
+                ), to=m.sender, in_reply_to=m.message_id,
+                   domains=("maintenance", "cooling_chain"))
+        return [], []
+
+
 
 # ---------------------------------------------------------------------------
 # LOGISTICS -- feed and milk movement
@@ -669,6 +760,42 @@ class LogisticsAgent:
                 )
 
         return findings, actions
+
+    domains: tuple[str, ...] = ("feed", "transport", "airlift")
+
+    def survey(self, board: Blackboard):
+        findings, actions = self.run()
+        self._post_context(board)
+        return findings, actions
+
+    def respond(self, board: Blackboard, inbox: list[Message]):
+        for m in inbox:
+            if "forage" in m.domains or m.sender == "crop":
+                f = sensors.get_feed_inventory()
+                board.post(self.name, Kind.ANSWER, (
+                    f"Feed cover is {f['feed_hours_of_cover']:.0f}h. There is room to substitute "
+                    "purchased feed for irrigation this cycle -- but procurement lead time means "
+                    "the decision has to be taken before the forage is actually gone."
+                ), to=m.sender, in_reply_to=m.message_id, domains=("feed", "forage"),
+                   evidence={"cover_h": f["feed_hours_of_cover"]})
+            elif "youngstock" in m.domains or m.sender == "calving":
+                y = sensors.youngstock()
+                board.post(self.name, Kind.ANSWER, (
+                    f"{y['non_productive_head']:,} head are eating without producing milk. "
+                    "Bridging a heifer weight deficit needs protein, which is importable -- but "
+                    "protein meal is not a top-up; the ration has to be rebalanced."
+                ), to=m.sender, in_reply_to=m.message_id, domains=("feed", "youngstock"),
+                   evidence={"non_productive_head": y["non_productive_head"]})
+        return [], []
+
+    def _post_context(self, board: Blackboard) -> None:
+        f = sensors.get_feed_inventory()
+        board.post(self.name, Kind.ALERT, (
+            f"Feed cover {f['feed_hours_of_cover']:.0f}h against {f['daily_demand_t']:.1f} t/day. "
+            "Purchased feed has lead time; forage grown on site cannot be expedited."
+        ), to="*", domains=("feed", "transport"),
+           evidence={"cover_h": f["feed_hours_of_cover"]})
+
 
 
 ALL_AGENTS = [
