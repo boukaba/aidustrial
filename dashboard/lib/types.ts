@@ -216,6 +216,13 @@ export interface StreamMessage {
       last_summary: string; last_ms: number;
       finding: string; severity: string; confidence: number; implies: string;
       messages: number; open_questions: number; awaiting_reply: boolean;
+      /** Live LLM reasoning state. `thinking` drives the spinner; `rationale`
+       *  is the model's own plain-language explanation of its conclusion. */
+      thinking?: boolean;
+      reasoned?: boolean;
+      reasoned_ms?: number;
+      rationale?: string;
+      reasoned_by?: string;
     }[];
     messages: number;
     unresolved: number;
@@ -226,6 +233,21 @@ export interface StreamMessage {
     }[];
     converged: boolean;
     summary: string;
+  };
+  /** Proof the agents reason rather than only apply thresholds. Empty when
+   *  the brain is disabled (no key / AIDUSTRIAL_LLM=off). */
+  llm?: {
+    enabled: boolean; model: string; in_flight: number; queued: number;
+    calls: number; failures: number; cache_hits: number; dropped_actions: number;
+    last_ms: number; last_error: string; last_at: number; agents_reasoned: string[];
+  };
+  /** Plain-language narration from the hidden eighth agent. */
+  narration?: {
+    stats: {
+      enabled: boolean; calls: number; failures: number;
+      last_ms: number; last_at: number; last_error: string; observations: number;
+    };
+    recent: { at: string; text: string }[];
   };
   orchestration: {
     converged: boolean; messages: number; unresolved: number; contested: number;

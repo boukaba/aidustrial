@@ -31,8 +31,14 @@ const ORDER = [
   "logistics",
 ] as const;
 
-/** Map an agent state onto the shared status vocabulary. */
+/** Map an agent state onto the shared status vocabulary.
+
+ *  `thinking` now comes straight from the backend: it is true while a real LLM
+ *  call is on the wire for that agent, which is the honest signal -- not an
+ *  inference from severity.
+ */
 const stateOf = (a: AgentRow): "reading" | "thinking" | "decided" | "blocked" | "watching" => {
+  if (a.thinking) return "thinking";
   if (a.awaiting_reply) return "blocked";
   if (a.severity === "critical" || a.severity === "high") return "thinking";
   if (a.finding) return "decided";
@@ -282,10 +288,33 @@ function AgentCard({ a }: { a: AgentRow }) {
               )}
             </div>
             <p className="text-[11.5px] leading-snug text-slate-300">{a.finding}</p>
+            {/* The model's own explanation of why it concluded that. This is
+                the clearest proof on the card that the agent reasoned rather
+                than matched a threshold. */}
+            {a.rationale && a.rationale !== a.finding && (
+              <p className="mt-1.5 border-l pl-2 text-[11px] italic leading-snug text-slate-500"
+                 style={{ borderColor: `${ident.hex}33` }}>
+                {a.rationale}
+              </p>
+            )}
             {a.implies && (
               <p className="mt-1.5 text-[11px] leading-snug text-slate-500">
                 <span className="text-slate-600">proposes → </span>
                 <code className="font-mono text-[10.5px] text-slate-400">{a.implies}</code>
+              </p>
+            )}
+            {/* Attribution + latency, only when the model actually produced it. */}
+            {a.reasoned && a.reasoned_by && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-[9.5px] text-slate-600">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: ident.hex }}
+                  aria-hidden
+                />
+                reasoned by <code className="text-slate-500">{a.reasoned_by}</code>
+                {a.reasoned_ms ? (
+                  <span className="metric text-slate-700">· {Math.round(a.reasoned_ms)}ms</span>
+                ) : null}
               </p>
             )}
           </>
@@ -376,10 +405,21 @@ function MessageFeed({ feed }: { feed: Mesh["feed"] }) {
 
 /* ------------------------------------------------------------------ view */
 
-export function AgentsLive({ mesh }: { mesh: Mesh }) {
+export function AgentsLive({
+  mesh,
+  llm,
+  narration,
+}: {
+  mesh: Mesh;
+  llm?: StreamMessage["llm"];
+  narration?: StreamMessage["narration"];
+}) {
   const acting = mesh.agents.filter((a) => a.calls > 0).length;
   const speaking = mesh.agents.filter((a) => a.messages > 0).length;
   const raised = mesh.agents.filter((a) => a.finding).length;
+  const reasoning = mesh.agents.filter((a) => a.reasoned).length;
+  const thinking = mesh.agents.filter((a) => a.thinking).length;
+  const latest = narration?.recent?.[narration.recent.length - 1];
 
   return (
     <div className="animate-fade-up space-y-4">
@@ -401,13 +441,46 @@ export function AgentsLive({ mesh }: { mesh: Mesh }) {
               Each card is one specialist reading the farm right now. The numbers flash when
               they change — nothing here is a stored report.
             </p>
+            {/* Reasoning is real when the brain is on: show it plainly. */}
+            {llm?.enabled && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-slate-500">
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    thinking > 0 ? "animate-pulse-dot" : ""
+                  }`}
+                  style={{ background: thinking > 0 ? "#a3e635" : "#475569" }}
+                  aria-hidden
+                />
+                <span>
+                  reasoning live via{" "}
+                  <code className="rounded bg-white/[0.04] px-1 py-0.5 text-slate-400">
+                    {llm.model}
+                  </code>
+                </span>
+                <span className="text-slate-700">·</span>
+                <span className="metric">
+                  {reasoning} reasoned
+                  {thinking > 0 ? ` · ${thinking} thinking` : ""}
+                </span>
+                <span className="text-slate-700">·</span>
+                <span className="metric text-slate-600">
+                  {llm.calls} calls · {llm.failures} failed · {llm.cache_hits} cached
+                </span>
+              </p>
+            )}
+            {/* Ambient narration from the hidden eighth agent. */}
+            {latest && (
+              <p className="mt-2 max-w-2xl border-l border-white/10 pl-2.5 text-[11.5px] italic leading-relaxed text-slate-500">
+                {latest.text}
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 gap-2">
             {[
               { v: mesh.agents.length, l: "agents", c: "#e2e8f0" },
               { v: acting, l: "reading", c: "#38bdf8" },
               { v: speaking, l: "speaking", c: "#2dd4bf" },
-              { v: raised, l: "raised", c: "#fbbf24" },
+              { v: reasoning, l: "reasoned", c: "#a3e635" },
               { v: mesh.messages, l: "messages", c: "#c084fc" },
             ].map((s) => (
               <div

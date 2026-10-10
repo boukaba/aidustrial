@@ -178,7 +178,9 @@ export default function Command() {
         )}
 
         {/* ------------------------------------------- AGENTS AT WORK */}
-        {nav === "agents" && mesh && <AgentsLive mesh={mesh} />}
+        {nav === "agents" && mesh && (
+          <AgentsLive mesh={mesh} llm={data.llm} narration={data.narration} />
+        )}
 
         {/* ----------------------------------------------- AREA DETAIL */}
         {nav !== "home" && nav !== "agents" && nav !== "decisions" && nav !== "system" && (

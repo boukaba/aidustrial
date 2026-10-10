@@ -70,7 +70,6 @@ def test_no_solar_load_at_night():
 def test_misting_is_not_competing_with_pivots_for_water():
     """Guards the framing we corrected during build. Misting is tiny against
     irrigation; the real contest is pivots vs the annual aquifer envelope."""
-    w = World()
     pivot_m3h = C.PIVOTS * (C.PIVOT_AREA_HA * 10_000 * 0.009)
     mist_m3h = C.MISTER_FLOW_LPM * C.COOLING_MISTERS_INSTALLED * 60 / 1000
     assert mist_m3h < pivot_m3h / 100

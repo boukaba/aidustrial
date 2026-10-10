@@ -27,9 +27,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
 from ..agents.domains import ALL_DOMAIN_AGENTS
+from ..agents.reasoning import apply_reasoning, request_reasoning
 from ..agents.specialists import ALL_AGENTS
 from ..tools import sensors
 from ..tools.actions import Action, Decision
+from ..tools.llm import BRAIN as _BRAIN
 from ..tools.sensors import CURRENT_AGENT
 from ..twin import constants as C
 from .state import FarmState, trace_event
@@ -74,6 +76,10 @@ CROSS_CONSULT: dict[str, list[str]] = {
     "maintenance": ["logistics"],
     "logistics": [],
 }
+
+#: The LLM is only allowed to propose actions the system already knows how to
+#: route and execute. Anything else it invents is dropped in `tools/llm.py`.
+_BRAIN.allowed = frozenset(IMPLICATION_ROUTES)
 
 
 # ---------------------------------------------------------------------------
@@ -206,7 +212,13 @@ def triage(state: FarmState) -> dict:
 
 def wake_specialists(state: FarmState) -> dict:
     """ROUND 1 -- survey. Each focused agent reads the site and broadcasts what
-    it sees onto the shared blackboard, alongside its own proposals."""
+    it sees onto the shared blackboard, alongside its own proposals.
+
+    The threshold rules run first and always produce output -- they are the
+    floor that keeps the demo alive when the network is slow or the free tier
+    is rate-limiting. The LLM verdict, when one has landed, is then merged on
+    top under the escalation-only safety rules in `agents/reasoning.py`.
+    """
     focus = state.get("agents_awake") or []
     world = sensors.current().world
     board = world.board
@@ -218,7 +230,18 @@ def wake_specialists(state: FarmState) -> dict:
         if agent is None:
             continue
         CURRENT_AGENT.set(name)
+
+        # 1. rules -- synchronous, deterministic, always succeeds
         f, a = agent.survey(board)
+
+        # 2. ask the model to reason about the same slice. Non-blocking: it
+        #    stashes work for the server's event loop and returns immediately.
+        request_reasoning(name, board, getattr(agent, "system_prompt", ""))
+
+        # 3. merge any verdict that has already landed (from a prior tick)
+        f, a = apply_reasoning(name, f, a)
+        r = _BRAIN.get(name)
+
         findings.extend(f)
         proposals.extend(a)
         trace.append(
@@ -227,7 +250,9 @@ def wake_specialists(state: FarmState) -> dict:
                 (f"{len(f)} finding(s), {len(a)} proposal(s). "
                  + (f"Top: {f[0].summary}" if f else "Nothing actionable.")),
                 domains=list(getattr(agent, "domains", ())),
-            )
+                reasoned=bool(r and r.valid),
+                thinking=_BRAIN.in_flight(name),
+            ),
         )
     return {"findings": findings, "proposals": proposals, "trace": trace}
 

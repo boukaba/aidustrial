@@ -21,10 +21,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
+from ..agents.narrator import NARRATOR
 from ..agents.specialists import ALL_AGENTS
 from ..graph.orchestrator import ALL as ALL_MESH
 from ..graph.orchestrator import GRAPH
 from ..tools import sensors
+from ..tools.llm import BRAIN
 from ..twin import constants as C
 from ..twin.world import World
 
@@ -37,6 +39,33 @@ app.add_middleware(
 )
 
 _compiled = GRAPH.compile(checkpointer=MemorySaver())
+_brain_task: asyncio.Task | None = None
+_narrator_task: asyncio.Task | None = None
+
+
+@app.on_event("startup")
+async def _start_brain() -> None:
+    """Run the LLM drain loop and the narrator on the server's event loop.
+
+    Reasoning never blocks a graph tick: the graph stashes payloads, this loop
+    drains them concurrently, and ticks pick up verdicts on later passes.
+    The narrator runs on its own slower cadence and is purely decorative prose.
+    """
+    global _brain_task, _narrator_task
+    BRAIN.bind_loop(asyncio.get_running_loop())
+    _brain_task = asyncio.create_task(BRAIN.run())
+    _narrator_task = asyncio.create_task(NARRATOR.run())
+
+
+@app.on_event("shutdown")
+async def _stop_brain() -> None:
+    BRAIN.stop()
+    NARRATOR.stop()
+    for task in (_brain_task, _narrator_task):
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +117,12 @@ class Session:
             },
             "decision_log": self.decision_log[-25:],
             "auto_executed": self.auto_executed[-15:],
+            # Proof the agents are reasoning rather than only applying
+            # thresholds: model, call counts, latency, and which agents have a
+            # live verdict. Empty when the brain is disabled.
+            "llm": BRAIN.stats(),
+            # The hidden eighth agent: plain-language narration of the site.
+            "narration": {"stats": NARRATOR.stats(), "recent": NARRATOR.recent(6)},
             "project": {
                 "name": C.PROJECT,
                 "location": C.LOCATION,
@@ -125,6 +160,7 @@ class Session:
             # A proposal is "live" once raised and not yet answered on the board.
             mine = [m for m in msgs if m.get("sender") == name]
             open_q = [m for m in mine if m.get("expects_reply") and m.get("message_id") not in answered]
+            r = BRAIN.get(name)
             agents.append({
                 "agent": name,
                 "readings": rows,
@@ -141,6 +177,13 @@ class Session:
                 "messages": len(mine),
                 "open_questions": len(open_q),
                 "awaiting_reply": bool(open_q),
+                # Live reasoning state. `thinking` drives the spinner;
+                # `rationale` is the model's own plain-language explanation.
+                "thinking": BRAIN.in_flight(name),
+                "reasoned": bool(r and r.valid),
+                "reasoned_ms": round(r.ms, 1) if r else 0,
+                "rationale": (r.rationale if r and r.valid else ""),
+                "reasoned_by": (r.model if r and r.valid else ""),
             })
 
         return {
