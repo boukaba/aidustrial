@@ -49,6 +49,9 @@ class FarmState(TypedDict, total=False):
     # --- routing ---
     focus: list[str]
     escalation: Literal["none", "watch", "urgent"]
+    dispatched: list[str]
+    dispatch_reasons: list[str]
+    orchestration: dict
 
     # --- HITL ---
     gate_queue: list[Action]
@@ -59,6 +62,9 @@ class FarmState(TypedDict, total=False):
     # after the first.
     executed: Annotated[list[dict], _append]
     rejected: Annotated[list[dict], _append]
+    #: Human verdicts, appended as they happen so the audit trail survives a
+    #: resume and shows up in the control panel.
+    decision_log: Annotated[list[dict], _append]
 
     # --- loop control ---
     turn: int

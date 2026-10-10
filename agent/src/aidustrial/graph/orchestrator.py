@@ -30,6 +30,7 @@ from ..agents.domains import ALL_DOMAIN_AGENTS
 from ..agents.specialists import ALL_AGENTS
 from ..tools import sensors
 from ..tools.actions import Action, Decision
+from ..tools.sensors import CURRENT_AGENT
 from ..twin import constants as C
 from .state import FarmState, trace_event
 
@@ -186,6 +187,8 @@ def triage(state: FarmState) -> dict:
     return {
         "agents_awake": focus,
         "escalation": escalation,
+        "dispatched": focus,
+        "dispatch_reasons": reasons,
         "trace": [
             trace_event(
                 "orchestrator",
@@ -214,6 +217,7 @@ def wake_specialists(state: FarmState) -> dict:
         agent = AGENT_BY_NAME.get(name)
         if agent is None:
             continue
+        CURRENT_AGENT.set(name)
         f, a = agent.survey(board)
         findings.extend(f)
         proposals.extend(a)
@@ -254,6 +258,7 @@ def consult(state: FarmState) -> dict:
         agent = AGENT_BY_NAME.get(name)
         if agent is None:
             continue
+        CURRENT_AGENT.set(name)
         _f, _a = agent.respond(board, inbox)
         trace.append(
             trace_event(
@@ -289,6 +294,16 @@ def deliberate(state: FarmState) -> dict:
         )
 
     return {
+        "orchestration": {
+            "converged": not unresolved and not contested,
+            "messages": len(board.messages),
+            "unresolved": len(unresolved),
+            "contested": len(contested),
+            "unresolved_detail": [
+                {"from": m.sender, "to": m.recipient, "kind": m.kind, "content": m.content}
+                for m in unresolved
+            ],
+        },
         "trace": [
             trace_event("orchestrator", "deliberate", state_line,
                         converged=not unresolved and not contested,
@@ -504,6 +519,19 @@ def human_gate(state: FarmState) -> dict:
     return {
         "pending": None,
         "decision": decision,
+        "decision_log": [
+            {
+                **record,
+                "action": top.action,
+                "target": top.target,
+                "approved": approved,
+                "note": note,
+                "sim_time": state.get("sim_time", ""),
+                "risk": top.risk_score,
+                "urgency": top.urgency_band(),
+                "requested_by": top.requested_by,
+            }
+        ],
         "gate_queue": queue[1:],
         "executed": [record] if approved else [],
         "rejected": [] if approved else [record],

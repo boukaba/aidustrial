@@ -197,6 +197,27 @@ export interface StreamMessage {
   summary: Summary;
   pending: { action: ActionPayload; queued: ActionPayload[]; tick: number; sim_time: string } | null;
   findings: { agent: string; summary: string; severity: Severity; confidence: number; evidence: Record<string, unknown>; implies: string }[];
+  activity: {
+    agents: {
+      agent: string; calls: number; total_calls: number; last_tool: string;
+      last_args: string; last_ms: number; last_ok: boolean; last_summary: string;
+      last_tick: number; state: string; recent: string[];
+    }[];
+    recent_calls: {
+      seq: number; agent: string; tool: string; args: string;
+      tick: number; ms: number; ok: boolean; summary: string;
+    }[];
+  };
+  orchestration: {
+    converged: boolean; messages: number; unresolved: number; contested: number;
+    unresolved_detail: { from: string; to: string; kind: string; content: string }[];
+  };
+  decision_log: {
+    action: string; target: string; approved: boolean; note: string;
+    sim_time: string; risk: number; urgency: string; requested_by: string;
+    result?: string; tick?: number;
+  }[];
+  auto_executed: { action: string; target: string; result: string; approved_by: string }[];
   trace: TraceEvent[];
   awaiting_decision: boolean;
   project: {

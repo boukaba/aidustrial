@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AreaDetail } from "@/components/AreaDetail";
 import { AreaNav, areaCards } from "@/components/AreaNav";
 import { DecisionGate, useFarmStream } from "@/components/Control";
+import { ControlPanel } from "@/components/ControlPanel";
 import {
   EventsPanel,
   FindingsPanel,
@@ -21,6 +22,7 @@ export default function Command() {
     useFarmStream("demo", 14);
   const [area, setArea] = useState<AreaId>("crop");
   const [showOps, setShowOps] = useState(false);
+  const [panel, setPanel] = useState(false);
 
   if (!data) {
     return (
@@ -58,6 +60,7 @@ export default function Command() {
   );
 
   return (
+    <div className={panel ? "panel-open pr-[420px]" : "pr-10"}>
     <main className="mx-auto max-w-[1500px] p-4 lg:p-6">
       {/* ---------------------------------------------------------- header */}
       <header className="card mb-4 p-4">
@@ -201,5 +204,15 @@ export default function Command() {
         </p>
       </footer>
     </main>
+
+      <ControlPanel
+        d={data}
+        open={panel}
+        onToggle={() => setPanel((v) => !v)}
+        speed={speed}
+        onSpeed={setSpeed}
+        onDecide={decide}
+      />
+    </div>
   );
 }

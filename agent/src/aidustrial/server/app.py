@@ -57,6 +57,10 @@ class Session:
     subscribers: set[WebSocket] = field(default_factory=set)
     last_push: float = 0.0
     awaiting_decision: bool = False
+    orchestration: dict = field(default_factory=dict)
+    decision_log: list[dict] = field(default_factory=list)
+    auto_executed: list[dict] = field(default_factory=list)
+    dispatch_log: list[dict] = field(default_factory=list)
 
     def snapshot(self) -> dict:
         p = self.world.observe()
@@ -67,8 +71,21 @@ class Session:
             "summary": self._summary(p),
             "pending": self.pending,
             "findings": self.findings[-14:],
-            "trace": self.trace[-40:],
+            "trace": self.trace[-60:],
             "awaiting_decision": self.awaiting_decision,
+            "activity": sensors.GW.activity(),
+            # A session that has not run a graph tick yet must still emit a
+            # well-formed payload -- the panel reads these keys unconditionally.
+            "orchestration": self.orchestration
+            or {
+                "converged": True,
+                "messages": 0,
+                "unresolved": 0,
+                "contested": 0,
+                "unresolved_detail": [],
+            },
+            "decision_log": self.decision_log[-25:],
+            "auto_executed": self.auto_executed[-15:],
             "project": {
                 "name": C.PROJECT,
                 "location": C.LOCATION,
@@ -165,10 +182,27 @@ async def drive(session: Session, approved: dict | None = None) -> None:
         return
 
     session.push_trace(out.get("trace") or [])
+    if out.get("orchestration"):
+        session.orchestration = out["orchestration"]
+    if out.get("dispatched"):
+        session.dispatch_log.append(
+            {
+                "tick": out.get("tick", 0),
+                "dispatched": out["dispatched"],
+                "reasons": out.get("dispatch_reasons", []),
+                "escalation": out.get("escalation", "none"),
+            }
+        )
     session.findings = [
         f.to_dict() for f in (out.get("findings") or [])
     ][-14:]
-    session.executed = out.get("executed") or []  # type: ignore[attr-defined]
+    session.auto_executed = list(session.auto_executed) + [
+        e for e in (out.get("executed") or [])
+        if e.get("approved_by") == "auto-policy"
+    ][-15:]
+
+    for d in out.get("decision_log") or []:
+        session.decision_log.append(d)
 
     it = out.get("__interrupt__")
     payload = it[0].value if it else None

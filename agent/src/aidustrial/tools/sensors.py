@@ -14,10 +14,34 @@ The split mirrors the four sensory domains named in the architecture:
 
 from __future__ import annotations
 
+import contextvars
+import time
+from collections import deque
+from dataclasses import dataclass
 from typing import Any
 
 from ..twin import constants as C
 from ..twin.world import World
+
+#: Which agent is currently running. Agents call tools synchronously, so a
+#: context variable is the least invasive way to attribute every call to the
+#: agent that made it -- and it means the log is real telemetry rather than a
+#: narrative written after the fact.
+CURRENT_AGENT: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "current_agent", default="orchestrator"
+)
+
+
+@dataclass
+class ToolCall:
+    seq: int
+    agent: str
+    tool: str
+    args: str
+    tick: int
+    ms: float
+    ok: bool
+    summary: str
 
 
 class SensorGateway:
@@ -25,9 +49,87 @@ class SensorGateway:
 
     def __init__(self, world: World) -> None:
         self.world = world
+        #: Bounded ring of tool calls. Bounded because an unbounded log in a
+        #: long-running stream is a memory leak dressed as a feature.
+        self.calls: deque[ToolCall] = deque(maxlen=400)
+        self._seq = 0
+        self.by_agent: dict[str, int] = {}
+        self.active: dict[str, str] = {}
+        self.last_result: dict[str, Any] = {}
 
     def packet(self) -> dict:
         return self.world.observe()
+
+    # -- call instrumentation --------------------------------------------
+
+    def record(self, tool: str, args: str, fn, *a, **kw):
+        agent = CURRENT_AGENT.get()
+        self._seq += 1
+        t0 = time.perf_counter()
+        try:
+            out = fn(*a, **kw)
+            ok = True
+        except Exception as exc:  # noqa: BLE001
+            out = {"error": str(exc)}
+            ok = False
+        ms = (time.perf_counter() - t0) * 1000
+        self.calls.append(
+            ToolCall(
+                seq=self._seq,
+                agent=agent,
+                tool=tool,
+                args=args,
+                tick=self.world.env.clock.tick,
+                ms=ms,
+                ok=ok,
+                summary=summarise(tool, out),
+            )
+        )
+        self.by_agent[agent] = self.by_agent.get(agent, 0) + 1
+        self.active[agent] = tool
+        self.last_result[f"{agent}:{tool}"] = out
+        return out
+
+    def activity(self) -> dict:
+        """Per-agent live state for the control panel."""
+        agents: dict[str, dict] = {}
+        for c in reversed(self.calls):
+            a = agents.setdefault(
+                c.agent,
+                {
+                    "agent": c.agent,
+                    "calls": 0,
+                    "last_tool": c.tool,
+                    "last_args": c.args,
+                    "last_ms": round(c.ms, 2),
+                    "last_ok": c.ok,
+                    "last_summary": c.summary,
+                    "last_tick": c.tick,
+                    "state": "idle",
+                    "recent": [],
+                },
+            )
+            if a["calls"] < 6 and c.tool not in a["recent"]:
+                a["recent"].append(c.tool)
+        for name, total in self.by_agent.items():
+            if name in agents:
+                agents[name]["total_calls"] = total
+        return {
+            "agents": list(agents.values()),
+            "recent_calls": [
+                {
+                    "seq": c.seq,
+                    "agent": c.agent,
+                    "tool": c.tool,
+                    "args": c.args,
+                    "tick": c.tick,
+                    "ms": round(c.ms, 2),
+                    "ok": c.ok,
+                    "summary": c.summary,
+                }
+                for c in list(self.calls)[-40:]
+            ],
+        }
 
     def step(self) -> dict:
         """Advance the simulation. Only the graph's `sense` node may call this."""
@@ -89,6 +191,36 @@ class SensorGateway:
 # Tool functions. Thin on purpose -- the value is in the contract, not the body.
 # ---------------------------------------------------------------------------
 
+def summarise(tool: str, out: Any) -> str:
+    """One-line digest of a tool result, for the live activity feed."""
+    try:
+        if isinstance(out, list):
+            return f"{len(out)} row(s)"
+        if not isinstance(out, dict):
+            return str(out)[:70]
+        if "standing_t" in out:
+            return f"{out['standing_t']:.0f} t standing, {len(out.get('fields', []))} fields"
+        if "non_productive_head" in out:
+            return f"{out['total_head']:,} head, {out['non_productive_head']:,} non-productive"
+        if "daily_milk_kg" in out:
+            return f"{out['daily_milk_kg'] / 1000:.0f} t/d, SCC {out.get('bulk_scc_k', 0):.0f}k"
+        if "budget_used_pct" in out:
+            return f"aquifer {out['budget_used_pct']:.0f}% of envelope"
+        if "effective_heat_load" in out:
+            return f"EHL {out['effective_heat_load']:.0f} ({out.get('heat_stress_band')})"
+        if "rumination_deficit_pct" in out:
+            return f"rumination -{out['rumination_deficit_pct']:.1f}%"
+        if "feed_hours_of_cover" in out:
+            return f"feed cover {out['feed_hours_of_cover']:.0f}h"
+        if "pivots" in out:
+            return f"{len(out['pivots'])} pivots, {sum(1 for p in out['pivots'] if p['running'])} running"
+        if "airlift" in out:
+            return f"airlift {out['airlift']['delivered']:,}/{out['airlift']['target']:,}"
+        return ", ".join(f"{k}={v}" for k, v in list(out.items())[:3])[:70]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 GW: SensorGateway | None = None
 
 
@@ -115,6 +247,10 @@ def _gw() -> SensorGateway:
 
 def get_environment_telemetry() -> dict:
     """Air and surface conditions at site. Agronomist + veterinarian."""
+    return _gw().record("get_environment_telemetry", "", lambda: _environment_packet())
+
+
+def _environment_packet() -> dict:
     e = _gw().environment()
     return {
         "time": _gw().packet()["time"],
@@ -133,11 +269,11 @@ def get_environment_telemetry() -> dict:
 
 def get_water_budget() -> dict:
     """Aquifer status and projected annual draw. This is the scarce resource."""
-    return _gw().water_status()
+    return _gw().record("get_water_budget", "", _gw().water_status)
 
 
 def get_pivot_telemetry() -> list[dict]:
-    return _gw().pivot_telemetry()
+    return _gw().record("get_pivot_telemetry", "", _gw().pivot_telemetry)
 
 
 # --- veterinary tools ------------------------------------------------------
@@ -145,7 +281,7 @@ def get_pivot_telemetry() -> list[dict]:
 def get_herd_vitals() -> dict:
     """Smart-collar roll-up. Aggregated per barn, not per cow -- at 270k head
     per-cow telemetry is a fiction and operations reason at barn level."""
-    return _gw().herd()
+    return _gw().record("get_herd_vitals", "", _gw().herd)
 
 
 def get_group_health(name: str) -> dict | None:
@@ -153,6 +289,10 @@ def get_group_health(name: str) -> dict | None:
 
 
 def get_barns_without_cooling() -> dict:
+    return _gw().record("get_barns_without_cooling", "", _barns_without_cooling)
+
+
+def _barns_without_cooling() -> dict:
     return {
         "barns": _gw().barns_without_cooling(),
         "note": (
@@ -169,13 +309,17 @@ def get_asset_health() -> list[dict]:
 
 
 def get_degraded_assets() -> list[dict]:
-    return _gw().degraded_assets()
+    return _gw().record("get_degraded_assets", "", _gw().degraded_assets)
 
 
 # --- crop tools ------------------------------------------------------------
 
 def crops() -> dict:
     """Standing forage programme: growth, cut readiness, harvest history."""
+    return _gw().record("crops", "", _crops_packet)
+
+
+def _crops_packet() -> dict:
     w = _gw().world
     c = w.crops
     return {
@@ -217,6 +361,10 @@ def youngstock() -> dict:
     Surfaces the fact that most of the herd is non-productive: the airlifted
     animals are heifers and will not milk for roughly 18 months.
     """
+    return _gw().record("youngstock", "", _youngstock_packet)
+
+
+def _youngstock_packet() -> dict:
     w = _gw().world
     ls = w.livestock
     lact = w.herd.herd_total_head()
@@ -275,6 +423,10 @@ def youngstock() -> dict:
 
 def milk() -> dict:
     """Parlour, cold chain, quality and powder plant."""
+    return _gw().record("milk", "", _milk_packet)
+
+
+def _milk_packet() -> dict:
     w = _gw().world
     m = w.milk
     lact = w.herd.herd_total_head()
@@ -307,6 +459,10 @@ def milk() -> dict:
 # --- logistics tools -------------------------------------------------------
 
 def get_feed_inventory() -> dict:
+    return _gw().record("get_feed_inventory", "", _feed_inventory)
+
+
+def _feed_inventory() -> dict:
     l = _gw().logistics()
     return {
         "feed_total_t": l["feed_total_t"],
@@ -318,11 +474,11 @@ def get_feed_inventory() -> dict:
 
 
 def get_fleet_positions() -> list[dict]:
-    return _gw().logistics()["tankers"]
+    return _gw().record("get_fleet_positions", "", lambda: _gw().logistics()["tankers"])
 
 
 def get_airlift_schedule() -> dict:
-    return _gw().airlift()
+    return _gw().record("get_airlift_schedule", "", _gw().airlift)
 
 
 ALL_TOOLS: list[Any] = [
