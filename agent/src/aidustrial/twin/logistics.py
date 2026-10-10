@@ -74,6 +74,22 @@ class Tanker:
     #: cold-chain risk is visibly attached to a leg of the journey.
     status_: str = "in_transit"
     dwell_ticks: int = 0
+    #: Fraction of capacity discharged per tick. Varies per unit, so a loaded
+    #: and a part-loaded tanker do not empty on the same tick.
+    discharge_rate: float = 1.0 / 24.0
+    #: Fixed turnaround at the plant, in ticks. Per-unit so the three units have
+    #: different cycle periods and do not drift into lockstep.
+    turnaround_ticks: int = 18
+    #: Road leg for this unit in ticks, and how far through it we are.
+    #: The leg is tracked explicitly rather than inferred from remaining
+    #: load, which made the last 70% of every trip read as 'unloading'.
+    road_ticks: int = 26
+    road_progress: int = 0
+    #: True while the tanker is still being filled at the parlour. Without an
+    #: explicit fill state, the first tick of loading gave the truck a partial
+    #: load and the next tick treated that as "departed" -- so tankers cruised
+    #: with 5 t instead of 30 t and milk was never actually collected.
+    filling: bool = False
 
     @property
     def fill_pct(self) -> float:
@@ -143,16 +159,50 @@ class LogisticsState:
                 )
             )
         # A road milk tanker carries 20-30 t. Chilled to 2-4C on dispatch.
+        #
+        # The fleet is seeded OUT OF PHASE on purpose: one unit already in
+        # transit, one dwelling at the powder plant, one filling at the parlour.
+        # Starting all three loaded with an identical discharge rate made them
+        # reach `unloading` on the same tick, which reads as staged rather than
+        # operational.
+        # Road leg 19-31 ticks (~90 km round trip plus end queueing in the
+        # Sahara at 30 min/tick), turnaround 6-14 ticks. Discharge rate is set
+        # to empty the load over roughly the road leg, so `discharge_rate` is
+        # derived from `road` rather than fixed. Cycle periods differ per unit
+        # so the fleet does not drift into lockstep.
+        seeds = (
+            {"leg": "in_transit", "load_kg": 24_600.0, "dwell_ticks": 0,
+             "turnaround": 8, "road": 26},
+            {"leg": "queued", "load_kg": 0.0, "dwell_ticks": 31,
+             "turnaround": 14, "road": 22},
+            {"leg": "loading", "load_kg": 0.0, "dwell_ticks": 0,
+             "turnaround": 6, "road": 31},
+            {"leg": "queued", "load_kg": 0.0, "dwell_ticks": 19,
+             "turnaround": 11, "road": 19},
+            {"leg": "in_transit", "load_kg": 9_400.0, "dwell_ticks": 0,
+             "turnaround": 9, "road": 27},
+        )
+        # Discharge spread over the road leg so the load reaches zero as the
+        # truck reaches the plant.
+        for sd in seeds:
+            # Discharge over ~4 ticks once at the plant.
+            sd["rate"] = 0.25
         log.tankers = [
             Tanker(
                 tid=f"T{i + 1}",
                 lat=27.87 + rng.uniform(-0.05, 0.05),
                 lon=-0.29 + rng.uniform(-0.05, 0.05),
-                load_kg=rng.uniform(16_000.0, 28_000.0),
                 capacity_kg=30_000.0,
                 coolant_temp_c=rng.uniform(2.5, 4.2),
+                status_=seeds[i]["leg"],
+                load_kg=seeds[i]["load_kg"],
+                dwell_ticks=seeds[i]["dwell_ticks"],
+                discharge_rate=seeds[i]["rate"],
+                turnaround_ticks=seeds[i]["turnaround"],
+                road_ticks=seeds[i]["road"],
+                filling=seeds[i]["leg"] == "loading",
             )
-            for i in range(3)
+            for i in range(len(seeds))
         ]
         return log
 
@@ -205,32 +255,69 @@ class LogisticsState:
             )
 
         # --- tanker dispatch cycle ---
-        # A tanker is either filling at the parlour, in transit, or unloading.
-        # It previously discharged every tick regardless of state, which drained
-        # the whole fleet to zero on day 0.
+        # Four explicit legs: loading at the parlour -> road to the powder
+        # plant -> unloading -> queued for the next slot. Modelling the legs
+        # explicitly (rather than inferring them from remaining load) is what
+        # makes the fleet read as operational instead of parked.
         step_frac = self.clock.minutes_per_tick / 1440.0
+        # Parlour output routed to a loading bay. ~5 t per 30-min tick fills a
+        # 30 t tanker in about six ticks, which is a 3-hour loading session --
+        # right for a site milking thousands of cows twice a day.
+        bay_throughput_kg_tick = 5_000.0
         for t in self.tankers:
-            if t.load_kg <= 0.0:
-                # Dwell at the powder plant, then load and depart.
-                t.dwell_ticks -= 1
-                if t.dwell_ticks <= 0:
-                    t.load_kg = min(t.capacity_kg, milk_output_t_day * step_frac * 240.0)
+            # --- filling at the parlour ---
+            if t.filling:
+                t.status_ = "loading"
+                t.load_kg = min(
+                    t.capacity_kg,
+                    t.load_kg + min(
+                        bay_throughput_kg_tick,
+                        max(0.0, milk_output_t_day * 1000.0 * step_frac),
+                    ),
+                )
+                if t.load_kg >= t.capacity_kg * 0.995:
+                    t.filling = False
+                    t.load_kg = t.capacity_kg
                     t.coolant_temp_c = rng.uniform(2.5, 4.2)
+                    t.road_progress = 0
+                    t.status_ = "in_transit"
+                continue
+
+            # --- empty and waiting at the plant ---
+            if t.load_kg <= 0.0:
+                if t.dwell_ticks > 0:
+                    t.dwell_ticks -= 1
+                    t.status_ = "queued"
+                else:
+                    t.filling = True
                     t.status_ = "loading"
                 continue
 
-            t.status_ = "in_transit"
+            # --- cold chain: refrigeration all the way to the plant ---
             t.coolant_temp_c += (3.0 - t.coolant_temp_c) * 0.22
             t.coolant_temp_c += rng.uniform(-0.06, 0.10)
             if rng.random() < 0.004:
+                # Door openings, ambient soak on a 45C day, compressor cycling.
                 t.coolant_temp_c += rng.uniform(1.5, 4.0)
-            t.lat += rng.uniform(-0.004, 0.004)
-            t.lon += rng.uniform(-0.004, 0.004)
-            # Discharge over ~half a day of ticks.
-            t.load_kg = max(0.0, t.load_kg - (t.capacity_kg / 24.0))
-            if t.load_kg <= 0.0:
-                t.dwell_ticks = 96
+
+            t.road_progress += 1
+
+            if t.road_progress < t.road_ticks:
+                # --- road leg: load stays aboard ---
+                t.status_ = "in_transit"
+                t.lat += rng.uniform(-0.004, 0.004)
+                t.lon += rng.uniform(-0.004, 0.004)
+            else:
+                # --- unloading at the powder plant ---
                 t.status_ = "unloading"
+                t.load_kg = max(0.0, t.load_kg - (t.capacity_kg * t.discharge_rate))
+                if t.load_kg <= 0.0:
+                    # Turnaround, not a two-day layover. A 25 t load discharges
+                    # in a couple of hours; the earlier 96-tick dwell had the
+                    # fleet parked ~86% of the time.
+                    t.dwell_ticks = t.turnaround_ticks
+                    t.road_progress = 0
+                    t.status_ = "queued"
 
     def status(self) -> str:
         if self.critical_silos():

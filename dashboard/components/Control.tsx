@@ -100,9 +100,13 @@ export function ScoreBar({
 }
 
 export function EvidenceBlock({ evidence }: { evidence: Record<string, unknown> }) {
-  const entries = Object.entries(evidence).filter(
-    ([, v]) => v !== null && typeof v !== "object",
-  );
+  const entries = Object.entries(evidence).filter(([k, v]) => {
+    if (v === null || typeof v === "object") return false;
+    // A literal 0 headcount on an irrigation proposal reads like missing data
+    // rather than "this action does not touch animals". Drop the field instead.
+    if (k === "headcount_affected" && v === 0) return false;
+    return true;
+  });
   if (!entries.length) return null;
   return (
     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 rounded border border-ink-700 bg-ink-950/60 p-2.5 sm:grid-cols-3">
