@@ -26,6 +26,7 @@ from ..agents.specialists import ALL_AGENTS
 from ..graph.orchestrator import ALL as ALL_MESH
 from ..graph.orchestrator import GRAPH
 from ..tools import sensors
+from ..tools.jev import JEVS
 from ..tools.llm import BRAIN
 from ..twin import constants as C
 from ..twin.world import World
@@ -40,28 +41,35 @@ app.add_middleware(
 
 _compiled = GRAPH.compile(checkpointer=MemorySaver())
 _brain_task: asyncio.Task | None = None
+_jev_task: asyncio.Task | None = None
 _narrator_task: asyncio.Task | None = None
 
 
 @app.on_event("startup")
 async def _start_brain() -> None:
-    """Run the LLM drain loop and the narrator on the server's event loop.
+    """Run both reasoning drain loops and the narrator on the event loop.
 
-    Reasoning never blocks a graph tick: the graph stashes payloads, this loop
-    drains them concurrently, and ticks pick up verdicts on later passes.
-    The narrator runs on its own slower cadence and is purely decorative prose.
+    Reasoning never blocks a graph tick: the graph stashes payloads, these
+    loops drain them concurrently, and ticks pick up verdicts on later passes.
+    The decision track (Jev) polls faster than the prose track because it is
+    ~15x cheaper per call and is the one that decides what to *do*. The
+    narrator runs on its own slower cadence and is purely decorative prose.
     """
-    global _brain_task, _narrator_task
-    BRAIN.bind_loop(asyncio.get_running_loop())
+    global _brain_task, _jev_task, _narrator_task
+    loop = asyncio.get_running_loop()
+    BRAIN.bind_loop(loop)
+    JEVS.bind_loop(loop)
     _brain_task = asyncio.create_task(BRAIN.run())
+    _jev_task = asyncio.create_task(JEVS.run())
     _narrator_task = asyncio.create_task(NARRATOR.run())
 
 
 @app.on_event("shutdown")
 async def _stop_brain() -> None:
     BRAIN.stop()
+    JEVS.stop()
     NARRATOR.stop()
-    for task in (_brain_task, _narrator_task):
+    for task in (_brain_task, _jev_task, _narrator_task):
         if task is not None:
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -121,6 +129,10 @@ class Session:
             # thresholds: model, call counts, latency, and which agents have a
             # live verdict. Empty when the brain is disabled.
             "llm": BRAIN.stats(),
+            # The decision track. Separate from `llm` because it is a different
+            # model answering a different kind of question: typed decisions with
+            # probabilities, rather than prose. ~0.85s vs 12-66s.
+            "decision": JEVS.stats(),
             # The hidden eighth agent: plain-language narration of the site.
             "narration": {"stats": NARRATOR.stats(), "recent": NARRATOR.recent(6)},
             "project": {
@@ -161,6 +173,7 @@ class Session:
             mine = [m for m in msgs if m.get("sender") == name]
             open_q = [m for m in mine if m.get("expects_reply") and m.get("message_id") not in answered]
             r = BRAIN.get(name)
+            j = JEVS.get(name)
             agents.append({
                 "agent": name,
                 "readings": rows,
@@ -179,11 +192,18 @@ class Session:
                 "awaiting_reply": bool(open_q),
                 # Live reasoning state. `thinking` drives the spinner;
                 # `rationale` is the model's own plain-language explanation.
-                "thinking": BRAIN.in_flight(name),
+                "thinking": BRAIN.in_flight(name) or JEVS.in_flight(name),
                 "reasoned": bool(r and r.valid),
                 "reasoned_ms": round(r.ms, 1) if r else 0,
                 "rationale": (r.rationale if r and r.valid else ""),
                 "reasoned_by": (r.model if r and r.valid else ""),
+                # The decision track: did this agent decide anything, how sure
+                # was it, and how fast. Jev is the one that may propose actions.
+                "decided": bool(j and j.valid),
+                "decided_ms": round(j.ms, 1) if j else 0,
+                "decided_by": (j.model if j and j.valid else ""),
+                "warranted": bool(j and j.valid and j.warranted),
+                "action_p": round(j.action_p, 2) if j else 0.0,
             })
 
         return {

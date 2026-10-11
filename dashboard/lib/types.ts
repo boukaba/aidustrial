@@ -223,6 +223,15 @@ export interface StreamMessage {
       reasoned_ms?: number;
       rationale?: string;
       reasoned_by?: string;
+      /** The decision track (Jev). Typed questions answered with a value and
+       *  a probability, landing in ~0.9s rather than the 12-66s the prose
+       *  track needs. `action_p` is the odds on the action it picked; below
+       *  ~0.65 the backend refuses to act on the pick. */
+      decided?: boolean;
+      decided_ms?: number;
+      decided_by?: string;
+      warranted?: boolean;
+      action_p?: number;
     }[];
     messages: number;
     unresolved: number;
@@ -240,6 +249,16 @@ export interface StreamMessage {
     enabled: boolean; model: string; in_flight: number; queued: number;
     calls: number; failures: number; cache_hits: number; dropped_actions: number;
     last_ms: number; last_error: string; last_at: number; agents_reasoned: string[];
+  };
+  /** The decision track: a structured-decision model answering typed
+   *  questions (warranted? which action? how urgent?) with probabilities.
+   *  Separate from `llm` because it is a different model, a different
+   *  question shape, and roughly 15x faster. */
+  decision?: {
+    enabled: boolean; model: string; endpoint: string; in_flight: number;
+    queued: number; calls: number; failures: number; cache_hits: number;
+    rejected_low_confidence: number; last_ms: number; last_error: string;
+    agents_decided: string[];
   };
   /** Plain-language narration from the hidden eighth agent. */
   narration?: {

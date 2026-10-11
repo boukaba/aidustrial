@@ -303,15 +303,37 @@ function AgentCard({ a }: { a: AgentRow }) {
                 <code className="font-mono text-[10.5px] text-slate-400">{a.implies}</code>
               </p>
             )}
-            {/* Attribution + latency, only when the model actually produced it. */}
+            {/* Attribution + latency, only when the model actually produced it.
+                The decision track (Jev) is listed first: it is the one that
+                decided *what to do*, and it did so in under a second. */}
+            {a.decided && a.decided_by && (
+              <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9.5px] text-slate-600">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: "#38bdf8" }}
+                  aria-hidden
+                />
+                decided by <code className="text-slate-500">{a.decided_by}</code>
+                {a.decided_ms ? (
+                  <span className="metric text-slate-700">· {Math.round(a.decided_ms)}ms</span>
+                ) : null}
+                {a.warranted === false ? (
+                  <span className="text-slate-600">· nothing warranted</span>
+                ) : a.action_p ? (
+                  <span className="metric text-slate-700">
+                    · {Math.round(a.action_p * 100)}% on action
+                  </span>
+                ) : null}
+              </p>
+            )}
             {a.reasoned && a.reasoned_by && (
-              <p className="mt-1.5 flex items-center gap-1.5 text-[9.5px] text-slate-600">
+              <p className="mt-1 flex items-center gap-1.5 text-[9.5px] text-slate-600">
                 <span
                   className="inline-block h-1.5 w-1.5 rounded-full"
                   style={{ background: ident.hex }}
                   aria-hidden
                 />
-                reasoned by <code className="text-slate-500">{a.reasoned_by}</code>
+                words by <code className="text-slate-500">{a.reasoned_by}</code>
                 {a.reasoned_ms ? (
                   <span className="metric text-slate-700">· {Math.round(a.reasoned_ms)}ms</span>
                 ) : null}
@@ -408,16 +430,19 @@ function MessageFeed({ feed }: { feed: Mesh["feed"] }) {
 export function AgentsLive({
   mesh,
   llm,
+  decision,
   narration,
 }: {
   mesh: Mesh;
   llm?: StreamMessage["llm"];
+  decision?: StreamMessage["decision"];
   narration?: StreamMessage["narration"];
 }) {
   const acting = mesh.agents.filter((a) => a.calls > 0).length;
   const speaking = mesh.agents.filter((a) => a.messages > 0).length;
   const raised = mesh.agents.filter((a) => a.finding).length;
   const reasoning = mesh.agents.filter((a) => a.reasoned).length;
+  const decided = mesh.agents.filter((a) => a.decided).length;
   const thinking = mesh.agents.filter((a) => a.thinking).length;
   const latest = narration?.recent?.[narration.recent.length - 1];
 
@@ -441,9 +466,43 @@ export function AgentsLive({
               Each card is one specialist reading the farm right now. The numbers flash when
               they change — nothing here is a stored report.
             </p>
-            {/* Reasoning is real when the brain is on: show it plainly. */}
-            {llm?.enabled && (
+            {/* Two reasoning tracks, shown plainly. They divide the work:
+                the decision track decides *what to do* in under a second; the
+                prose track writes the plain-language summary a judge reads,
+                slower, and that is fine — nothing blocks on it. */}
+            {decision?.enabled && (
               <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-slate-500">
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    decision.in_flight > 0 ? "animate-pulse-dot" : ""
+                  }`}
+                  style={{ background: decision.in_flight > 0 ? "#38bdf8" : "#475569" }}
+                  aria-hidden
+                />
+                <span>
+                  deciding via{" "}
+                  <code className="rounded bg-white/[0.04] px-1 py-0.5 text-slate-400">
+                    {decision.model}
+                  </code>
+                </span>
+                <span className="text-slate-700">·</span>
+                <span className="metric">
+                  {decided} decided
+                  {decision.in_flight > 0 ? ` · ${decision.in_flight} asking` : ""}
+                </span>
+                <span className="text-slate-700">·</span>
+                <span className="metric text-slate-600">
+                  {decision.last_ms ? `${Math.round(decision.last_ms)}ms` : "—"}
+                  {" · "}
+                  {decision.calls} calls · {decision.failures} failed
+                  {decision.rejected_low_confidence > 0
+                    ? ` · ${decision.rejected_low_confidence} low-confidence`
+                    : ""}
+                </span>
+              </p>
+            )}
+            {llm?.enabled && (
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-slate-500">
                 <span
                   className={`inline-block h-1.5 w-1.5 rounded-full ${
                     thinking > 0 ? "animate-pulse-dot" : ""
@@ -452,7 +511,7 @@ export function AgentsLive({
                   aria-hidden
                 />
                 <span>
-                  reasoning live via{" "}
+                  writing via{" "}
                   <code className="rounded bg-white/[0.04] px-1 py-0.5 text-slate-400">
                     {llm.model}
                   </code>
@@ -480,6 +539,7 @@ export function AgentsLive({
               { v: mesh.agents.length, l: "agents", c: "#e2e8f0" },
               { v: acting, l: "reading", c: "#38bdf8" },
               { v: speaking, l: "speaking", c: "#2dd4bf" },
+              { v: decided, l: "decided", c: "#38bdf8" },
               { v: reasoning, l: "reasoned", c: "#a3e635" },
               { v: mesh.messages, l: "messages", c: "#c084fc" },
             ].map((s) => (

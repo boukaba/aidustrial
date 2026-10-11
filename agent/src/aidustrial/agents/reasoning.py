@@ -31,6 +31,13 @@ from typing import Any
 
 from ..tools import sensors
 from ..tools.actions import Action, Finding, score_risk, score_urgency
+from ..tools.jev import (
+    JEVS,
+    NO_ACTION,
+    SEVERITY_RUBRIC,
+    URGENCY_RUBRIC,
+    Decision,
+)
 from ..tools.llm import BRAIN, Reasoning, hash_state
 from ..twin import constants as C
 from .mesh import digest
@@ -68,6 +75,32 @@ OWNED: dict[str, tuple[str, ...]] = {
     "calving": ("boost_heifer_rations", "isolate_calves"),
     "milking": ("service_parlour", "clean_condenser", "cull_chronic_mastitis", "halt_intake"),
 }
+
+#: Human-readable criteria for the Jev `choice` question. A bare verb string
+#: makes a small model guess at intent; a sentence describing the consequence
+#: does not. Unknown verbs fall back to their raw name rather than being
+#: dropped -- the choice set must stay closed and complete.
+ACTION_LABELS: dict[str, str] = {
+    "start_pivot": "Start irrigating with the centre pivot",
+    "shed_pivot": "Shut a pivot down to protect it or the field",
+    "repair_pivot": "Send maintenance to repair a broken pivot",
+    "restart_inlet": "Restart a tripped water inlet valve",
+    "reroute_convoy": "Reroute the feed convoy to a different silo",
+    "enable_misters": "Turn on barn misters / cooling for the herd",
+    "shed_load": "Shed electrical load to protect the milking parlour",
+    "harvest_field": "Harvest the field now",
+    "boost_heifer_rations": "Increase heifer and calf feed rations",
+    "isolate_calves": "Separate sick or at-risk calves from the group",
+    "service_parlour": "Service the milking parlour",
+    "clean_condenser": "Clean the milk condenser / chiller",
+    "cull_chronic_mastitis": "Cull cows with chronic mastitis",
+    "halt_intake": "Halt milk intake and hold the tanker",
+}
+
+#: Ceiling on the compact state text handed to Jev. ~400 input tokens measured
+#: at roughly 1,500 characters, so this keeps a decision call in the same
+#: weight class whether or not the agent's sensors are busy.
+MAX_JEV_STATE_BYTES = 2400
 
 
 def _trim(value: Any, budget: int) -> Any:
@@ -188,6 +221,202 @@ def request_reasoning(agent: str, board: Any, system_prompt: str) -> str:
     return h
 
 
+# --------------------------------------------------------------------------
+# The decision track (Jev / SystemOne)
+# --------------------------------------------------------------------------
+
+
+def build_jev_state(agent: str, board: Any) -> str:
+    """A compact, plain text view of one agent's slice, for a decision model.
+
+    Reuses the same `READERS` and `_trim` budgets as the prose track so the two
+    tracks never disagree about what an agent can see. The clock and the
+    blackboard are excluded for the same reason they are excluded from the
+    prose hash: neither belongs in a call-dedup key, and the clock would make
+    the model reason about the time instead of the readings.
+    """
+    parts: list[str] = []
+    per_tool = max(300, MAX_JEV_STATE_BYTES // max(1, len(READERS.get(agent, ()))))
+    for name in READERS.get(agent, ()):
+        fn: Callable[..., Any] | None = getattr(sensors, name, None)
+        if fn is None:
+            continue
+        try:
+            parts.append(f"{name}: {json.dumps(_trim(fn(), per_tool), default=str)}")
+        except Exception as exc:  # noqa: BLE001 -- a failed read must not kill the tick
+            parts.append(f"{name}: unavailable ({str(exc)[:80]})")
+    state = " | ".join(parts)
+    if len(state) > MAX_JEV_STATE_BYTES:
+        state = state[:MAX_JEV_STATE_BYTES] + " [state truncated]"
+    if board is not None:
+        try:
+            board_view = digest(board)
+        except Exception:  # noqa: BLE001
+            board_view = ""
+        if board_view and board_view != "(no board)":
+            state += f" | peers_say: {board_view[:400]}"
+    return state
+
+
+def build_jev_questions(agent: str) -> dict:
+    """The four typed questions Jev answers, per agent.
+
+    The `choice` criteria are the agent's OWNED actions plus an explicit
+    `no_action`. Because Jev can only return a key from this dict, an agent
+    physically cannot be handed an action it does not own -- which is a
+    stronger guarantee than filtering a free-form string after the fact.
+    """
+    owned = OWNED.get(agent, ())
+    criteria = {name: ACTION_LABELS.get(name, name.replace("_", " ")) for name in owned}
+    criteria[NO_ACTION] = "Continue monitoring; nothing needs to happen yet"
+    return {
+        "warranted": {
+            "type": "noul",
+            "instructions": (
+                "Given these readings, does anything require action in the next "
+                "15 minutes? Note this is a SIMULATION of a dairy complex in Adrar, Algeria."
+            ),
+        },
+        "action": {
+            "type": "choice",
+            "instructions": "Which single action, if any, is warranted right now?",
+            "criteria": criteria,
+        },
+        "urgency": {
+            "type": "score",
+            "instructions": "How soon must this happen?",
+            "criteria": list(URGENCY_RUBRIC),
+        },
+        "severity": {
+            "type": "score",
+            "instructions": "How severe is the situation if nothing is done?",
+            "criteria": list(SEVERITY_RUBRIC),
+        },
+    }
+
+
+def build_jev_payload(agent: str, board: Any) -> dict:
+    """Full SystemOne request body for one agent."""
+    return {
+        "model": JEVS.model,
+        "state": build_jev_state(agent, board),
+        "questions": build_jev_questions(agent),
+    }
+
+
+def request_jev(agent: str, board: Any) -> str:
+    """Fire a non-blocking decision request. Returns the state hash, or "".
+
+    Thread-safe and non-blocking for the same reason as `request_reasoning`:
+    the graph runs in a worker thread, and only the server's event loop is
+    allowed to touch the network.
+    """
+    if not JEVS.enabled:
+        return ""
+    try:
+        payload = build_jev_payload(agent, board)
+    except Exception:  # noqa: BLE001
+        return ""
+    h = hash_state({"a": agent, "r": payload["state"]})
+    JEVS.request(agent, payload, h)
+    return h
+
+
+def apply_jev(
+    agent: str,
+    findings: list[Finding],
+    actions: list[Action],
+) -> tuple[list[Finding], list[Action]]:
+    """Merge Jev's decision into the rule output, under the same safety rules.
+
+    The prose track (`apply_reasoning`) and this one both obey one invariant:
+
+        THE MODEL MAY ESCALATE. IT MAY NEVER DE-ESCALATE PAST A RULE.
+
+    Plus one that matters more here, because Jev is the track that decides
+    *what to do* rather than *what to say*: an action Jev proposes always
+    carries a risk score above the human-gate ceiling. We have no sensor figure
+    to feed `score_risk` for a model-originated call, so it must face a person.
+    """
+    d: Decision | None = JEVS.get(agent)
+    if d is None or not d.valid:
+        return findings, actions
+
+    # --- severity: may only escalate -----------------------------------
+    if findings:
+        findings[0].evidence["jev"] = {
+            "warranted": d.warranted,
+            "action": d.action,
+            "probability": round(d.action_p, 2),
+            "ms": round(d.ms, 1),
+            "model": d.model,
+        }
+        if _sev_rank(d.severity) > _sev_rank(findings[0].severity):
+            findings[0].severity = d.severity
+            findings[0].evidence["severity_from_jev"] = True
+    elif d.warranted:
+        # A finding the rules did not raise. Worth surfacing: an early, quiet
+        # warning is exactly what a decision model is for.
+        findings.append(
+            Finding(
+                agent=agent,
+                summary=f"{agent} flags a developing condition requiring attention.",
+                severity=d.severity,
+                confidence=round(d.confidence, 2),
+                evidence={
+                    "origin": "jev",
+                    "reasoned_by": d.model,
+                    "jev_ms": round(d.ms, 1),
+                    "warranted_probability": d.warranted,
+                },
+                implies=d.action,
+            )
+        )
+
+    # --- urgency: may rise, never fall ---------------------------------
+    for a in actions:
+        a.evidence.setdefault("jev_model", d.model)
+        if d.urgency > a.urgency_score:
+            a.urgency_score = round(d.urgency, 1)
+            a.evidence["urgency_from_jev"] = True
+
+    # --- an action the rules did not find, with real confidence --------
+    if d.actionable and not any(a.action == d.action for a in actions):
+        actions.append(_jev_action(agent, d))
+
+    return findings, actions
+
+
+def _jev_action(agent: str, d: Decision) -> Action:
+    """An Action from a decision we did not independently verify.
+
+    Same risk floor as the prose track's model actions, and for the same
+    reason: no evidence we can score, therefore no auto-approval.
+    """
+    risk = max(
+        score_risk(severity=d.severity, reversible=True),
+        C.RISK_AUTO_APPROVE_CEILING + 15.0,
+    )
+    urgency = max(d.urgency, score_urgency(hours_to_irreversible_harm=24.0))
+    label = ACTION_LABELS.get(d.action, d.action.replace("_", " "))
+    return Action(
+        action=d.action,
+        target="",
+        rationale=f"{label} (proposed by {d.model} at {d.action_p:.0%} confidence).",
+        requested_by=agent,
+        risk_score=round(min(risk, 100.0), 1),
+        urgency_score=round(min(urgency, 100.0), 1),
+        severity=d.severity,
+        evidence={
+            "origin": "jev",
+            "reasoned_by": d.model,
+            "action_probability": round(d.action_p, 2),
+            "confidence": round(d.confidence, 2),
+        },
+        reversible=True,
+    )
+
+
 def apply_reasoning(
     agent: str,
     findings: list[Finding],
@@ -284,8 +513,15 @@ def _sev_rank(s: str) -> int:
 
 
 __all__ = [
+    "ACTION_LABELS",
+    "OWNED",
     "READERS",
+    "apply_jev",
     "apply_reasoning",
     "build_context",
+    "build_jev_payload",
+    "build_jev_questions",
+    "build_jev_state",
+    "request_jev",
     "request_reasoning",
 ]

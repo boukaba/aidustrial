@@ -27,10 +27,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
 from ..agents.domains import ALL_DOMAIN_AGENTS
-from ..agents.reasoning import apply_reasoning, request_reasoning
+from ..agents.reasoning import apply_jev, apply_reasoning, request_jev, request_reasoning
 from ..agents.specialists import ALL_AGENTS
 from ..tools import sensors
 from ..tools.actions import Action, Decision
+from ..tools.jev import JEVS as _JEVS
 from ..tools.llm import BRAIN as _BRAIN
 from ..tools.sensors import CURRENT_AGENT
 from ..twin import constants as C
@@ -79,7 +80,10 @@ CROSS_CONSULT: dict[str, list[str]] = {
 
 #: The LLM is only allowed to propose actions the system already knows how to
 #: route and execute. Anything else it invents is dropped in `tools/llm.py`.
+#: Jev gets the same set, but as a closed `choice` vocabulary it must pick from
+#: rather than a post-hoc filter -- see `agents/reasoning.build_jev_questions`.
 _BRAIN.allowed = frozenset(IMPLICATION_ROUTES)
+_JEVS.allowed = frozenset(IMPLICATION_ROUTES)
 
 
 # ---------------------------------------------------------------------------
@@ -214,9 +218,17 @@ def wake_specialists(state: FarmState) -> dict:
     """ROUND 1 -- survey. Each focused agent reads the site and broadcasts what
     it sees onto the shared blackboard, alongside its own proposals.
 
-    The threshold rules run first and always produce output -- they are the
-    floor that keeps the demo alive when the network is slow or the free tier
-    is rate-limiting. The LLM verdict, when one has landed, is then merged on
+    Two reasoning tracks run on top of the rules, and they divide the work by
+    what each is good at:
+
+      Jev (SystemOne) DECIDES. Typed questions, ~0.85s, lands nearly on the
+          same tick as the readings that caused it.
+      flash (Token Harbor) WRITES. The plain-language summary a judge reads,
+          12-66s, and that is fine -- nothing blocks on it.
+
+    The threshold rules still run first and always produce output: they are
+    the floor that keeps the demo alive when the network is slow or a free
+    tier is rate-limiting. Both verdicts, when they have landed, are merged on
     top under the escalation-only safety rules in `agents/reasoning.py`.
     """
     focus = state.get("agents_awake") or []
@@ -234,11 +246,15 @@ def wake_specialists(state: FarmState) -> dict:
         # 1. rules -- synchronous, deterministic, always succeeds
         f, a = agent.survey(board)
 
-        # 2. ask the model to reason about the same slice. Non-blocking: it
-        #    stashes work for the server's event loop and returns immediately.
+        # 2. ask both tracks to reason about the same slice. Neither blocks:
+        #    they stash work for the server's event loop and return at once.
+        request_jev(name, board)
         request_reasoning(name, board, getattr(agent, "system_prompt", ""))
 
-        # 3. merge any verdict that has already landed (from a prior tick)
+        # 3. merge any verdict that has already landed (from a prior tick).
+        #    Jev first: its verdict is the one that may *propose an action*,
+        #    and the prose track then narrates whatever is in front of it.
+        f, a = apply_jev(name, f, a)
         f, a = apply_reasoning(name, f, a)
         r = _BRAIN.get(name)
 
@@ -251,7 +267,7 @@ def wake_specialists(state: FarmState) -> dict:
                  + (f"Top: {f[0].summary}" if f else "Nothing actionable.")),
                 domains=list(getattr(agent, "domains", ())),
                 reasoned=bool(r and r.valid),
-                thinking=_BRAIN.in_flight(name),
+                thinking=_BRAIN.in_flight(name) or _JEVS.in_flight(name),
             ),
         )
     return {"findings": findings, "proposals": proposals, "trace": trace}

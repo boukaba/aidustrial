@@ -62,32 +62,36 @@ LAYER 0   Digital twin — Adrar site simulation
 
 ## Where things live
 
-Backend (`agent/src/aidustrial/`, ~6.3k lines Python, 33 tests):
+Backend (`agent/src/aidustrial/`, ~6.3k lines Python, 88 tests):
 
 ```
 twin/           Digital twin of the Adrar site. constants.py tags every
                 number with provenance (SOURCED/DERIVED/ASSUMPTION/...).
 tools/sensors.py  The ONLY module that talks to the twin. Every agent call
                 goes through here. Swap in real telemetry = edit this file.
-tools/llm.py    ★ The reasoning brain. Thread-safe queue, async drain,
-                escalation-only validation, JSON repair, action filtering.
+tools/jev.py    ★ The DECISION track. Zen's SystemOne/Jev: typed questions
+                (noul/choice/score) answered with values + probabilities in
+                ~0.9s. Non-blocking queue, escalation-only validation.
+tools/llm.py    ★ The PROSE track. Token Harbor flash model. Writes the
+                plain-language summary and rationale. 12-66s, non-blocking.
 tools/actions.py  Action/Finding dataclasses + score_risk/score_urgency.
-                Risk scoring is deterministic and NEVER touched by the LLM.
+                Risk scoring is deterministic and NEVER touched by any model.
 agents/specialists.py  Vet, agronomist, maintenance, logistics. Each has a
                 run() that decides, and a watch() that reports live readings.
 agents/domains.py     Crop, calving, milking. Same shape.
-agents/reasoning.py   ★ Prompt construction + the escalation-only merge of
-                an LLM verdict into rule output. READERS per agent, OWNED
-                action vocabulary, _trim byte budgets.
+agents/reasoning.py   ★ Prompt/question construction + the escalation-only
+                merge of both tracks into rule output. READERS per agent,
+                OWNED action vocabulary, ACTION_LABELS for the choice set.
 agents/narrator.py    ★ The hidden eighth agent. Plain-language observations.
                 Proposes nothing, gates nothing.
 agents/mesh.py   Blackboard + digest() (now actually used, for prompts).
 graph/orchestrator.py LangGraph state machine. ALL = 7 agents combined.
-                wake_specialists requests reasoning and merges verdicts.
-server/app.py   FastAPI + WebSocket. Starts the brain + narrator tasks.
-                snapshot() exposes llm + narration + per-agent rationale.
-tests/          59 cases. test_llm.py guards the safety invariants (no
-                network in the suite).
+                wake_specialists requests BOTH tracks and merges verdicts.
+server/app.py   FastAPI + WebSocket. Starts both brain tasks + narrator.
+                snapshot() exposes llm, decision, narration + per-agent
+                rationale and decision probability on the mesh.
+tests/          88 cases. test_llm.py guards the prose-track invariants,
+                test_jev.py the decision-track ones (no network in the suite).
 ```
 
 Frontend (`dashboard/`, ~5.6k lines TS/TSX):
@@ -105,15 +109,16 @@ lib/identity.ts     ★ Canonical agent registry: id, name, monogram, role,
 lib/language.ts     Every user-facing string. NAV, glossary, status text.
                     Re-exports agentName/agentRole from identity.
 lib/explain.ts      Plain-language explanations of every technical reading.
-lib/types.ts        StreamMessage (incl. `mesh`, `llm`, `narration`),
-                    AGENT_COLOR.
+lib/types.ts        StreamMessage (incl. `mesh`, `llm`, `decision`,
+                    `narration`), AGENT_COLOR.
 components/Icons.tsx    ★ All SVG glyphs: AgentGlyph, AgentBadge, NavGlyph,
                     UI gear/triangle. Replaces every emoji.
 components/Live.tsx     ★ Liveness primitives: LiveNumber (flashes its own
                     color on change), StatusChip, SevChip, ReadingRow.
 components/Agents.tsx   The money shot. SignalFlow diagram (7 agents → bus →
-                    OR), hero stats with REASONED, AgentCard grid showing
-                    each model's rationale + attribution, MessageFeed.
+                    OR), hero stats with DECIDED + REASONED, AgentCard grid
+                    showing each track's attribution (decided by … / words
+                    by …) and the model's rationale, MessageFeed.
 components/Control.tsx  useFarmStream hook, DecisionStrip (slim, sticky),
                     DecisionGate (full, on Decisions screen).
 components/Home.tsx     Identity-colored status cards with flashing numbers.
@@ -153,69 +158,135 @@ are the load-bearing pieces of the mission-control look.
 | 11 | `cd35380` | **Mission-control rebuild** — per-agent identity, SVG glyphs everywhere, flash-on-change numbers, signal-flow diagram, slim decision strip |
 | 12 | `6c6b1d6` | This document as a session-handoff (file map, exact commands, loose ends) |
 | 13 | `8521ba6` | **The agents actually reason** — free-LLM decision path, hidden narrator agent, escalation-only safety rules |
+| 14 | *(this)* | **Two-track reasoning** — Jev/SystemOne decides in ~0.9s with probabilities; flash keeps writing the prose |
 
 ---
 
-## The reasoning layer (commit 13)
+## The reasoning layer (commits 13 + 14)
 
 The seven agents used to be pure threshold machines: `if soil_moisture <=
 wilting: propose start_pivot`. Defensible, testable, and not intelligence. A
 judge watching for thirty seconds could tell.
 
 Now each agent's `survey()` still runs its rules first (the floor that keeps
-the demo alive), then a **real language model** reasons about the same slice of
-readings and produces the finding's plain-language summary, its rationale, and
-optionally an action. The verdict lands a few ticks late and is merged in from
-then on.
+the demo alive), then **two models** reason about the same slice of readings.
+They divide the work on their strengths:
 
-### Which backend, and why not OpenCode Zen
+| | **Decision track** (Jev) | **Prose track** (flash) |
+|---|---|---|
+| File | `tools/jev.py` | `tools/llm.py` |
+| Endpoint | `opencode.ai/zen/v1/systemone` | `tokenharbor.ai/v1/chat/completions` |
+| Model | `jev-1.13-free` | `mimo-v2.6-flash:free` |
+| Asks | typed questions → values + probabilities | "write a JSON verdict" |
+| Latency | **~0.9s** | 12–66s |
+| Input tokens | ~400 | ~2–4k (prose track) / 8.4k (SDK) |
+| Produces | *is it warranted, which action, how urgent, how severe* | *summary + rationale a judge reads* |
+| Can invent an action? | **No** — it picks from a closed `choice` set we supply | Yes, filtered post-hoc against the vocabulary |
+| JSON parsing | None — it returns typed answers | Yes, with truncation repair |
 
-`TOKENHARBOR_API_KEY` is already in the environment. Token Harbor is plain
-OpenAI-compatible at `https://tokenharbor.ai/v1/chat/completions`, and your
-`opencode.jsonc` lists several free models on it (`mimo-v2.6-flash:free`,
+The latency gap is the point. A verdict that lands 12–66s after the readings
+that caused it is a verdict about the past. Jev lands on nearly the same tick,
+so what the agents *do* stays in step with the world; only the prose lags, and
+the prose is commentary.
+
+Both tracks are non-blocking (same pattern: a thread-safe queue plus a
+background `asyncio` drain), and both obey one invariant:
+
+> **THE MODEL MAY ESCALATE. IT MAY NEVER DE-ESCALATE PAST A RULE.**
+
+Plus, for anything that proposes an *action*:
+
+> **An action a model proposes that the rules did not find always faces a
+> human.** We have no sensor figure to feed `score_risk` for a model-originated
+> call, so its risk is floored above `RISK_AUTO_APPROVE_CEILING`. No
+> auto-approval.
+
+Risk itself is never model-set, by either track. `score_risk()` decides.
+
+### Which backends, and the OpenCode Zen question
+
+**Prose track: Token Harbor.** `TOKENHARBOR_API_KEY` is already in the
+environment. Plain OpenAI-compatible at `https://tokenharbor.ai/v1/chat/completions`,
+and your `opencode.jsonc` lists several free models on it (`mimo-v2.6-flash:free`,
 `deepseek-v4-flash:free`, `claude-haiku-5.5:free`, …).
 
-**OpenCode Zen is not usable from here.** Its free tier answers programmatic
-calls with `FreeTierError: OpenCode's free tier can only be used from within
-OpenCode` (HTTP 403). The key in `~/.local/share/opencode/auth.json`
-(`opencode-go`) gets the same refusal. Do not waste time on it. Do not try to
-route around that restriction either — it is an access control, and this
-project's honesty constraint applies to how we obtain compute, not only to what
-we display.
+**Decision track: OpenCode Zen's SystemOne (Jev) endpoint.**
+
+What is *not* usable: Zen's **free chat-completions tier called
+programmatically**. It answers a bare HTTP call with
+`FreeTierError: OpenCode's free tier can only be used from within OpenCode`
+(HTTP 403). Do not try to route around that restriction — it is an access
+control, and this project's honesty constraint applies to how we obtain
+compute, not only to what we display.
+
+What *is* usable, and is the path this project takes: Zen's **Jev /
+SystemOne** endpoint (`https://opencode.ai/zen/v1/systemone`), authenticated
+with the credential already stored in `~/.local/share/opencode/auth.json`
+(`opencode-go`). That is ordinary use of your own API key against a
+documented endpoint, which is why it works where the free chat tier refuses.
+`tools/jev.py` reads the key from `OPENCODE_API_KEY` if set, else falls back
+to that auth store.
+
+Jev is worth a paragraph of its own because it is a different *kind* of model.
+You give it typed questions — `noul` (yes/no), `choice` (pick from a list you
+supply) and `score` (rate against a rubric) — and it returns values *with
+probabilities*. Measured against the free flash model:
+
+| | free flash | **Jev free** |
+|---|---|---|
+| Latency | 12–66s | **~0.85s** |
+| Input tokens | 8,400 (SDK) / 2–4k | **~400** |
+| Output shape | prose → JSON parse | **typed + probabilities** |
+| JSON repair needed | yes | **no** |
+
+The OpenCode **SDK** (`@opencode-ai/sdk`) was tested and works —
+`createOpencode()` starts a real local server and `session.prompt` routes
+through genuine OpenCode, so no FreeTierError, cost $0 — but it is the wrong
+tool *for us*: every prompt becomes a full coding-agent session with tool
+definitions and an 8.4k-token system prompt. That is why this project speaks
+to SystemOne directly instead. Worth knowing if you ever want real agent
+sessions rather than a one-shot verdict.
 
 ### The three constraints
 
-**1. Latency.** A trivial call measures ~4.7s; a real reasoning call measures
-6–24s. The world ticks 12×/second. So the brain **never blocks a tick**:
+**1. Latency.** Neither track may block a tick — the world runs 12×/second and
+the graph runs in a worker thread via `asyncio.to_thread`. Both use the same
+shape: `request()` is thread-safe and non-blocking (it only stashes a payload),
+and a background `asyncio` task started on server startup drains a queue. Ticks
+keep running on rules while calls are in flight and pick up verdicts on a later
+pass.
 
-- `Brain.request()` is thread-safe and non-blocking (the graph runs in a worker
-  thread via `asyncio.to_thread`); it only stashes a payload.
-- A background `asyncio` task started on server startup drains a queue, at most
-  **3 concurrent** calls, each capped at **24s**.
-- Ticks keep running on rules while calls are in flight; the verdict is used
-  from a later pass.
-- A **22s per-agent cooldown** dedups. The twin changes every tick, so a
-  content-hash cache can never hit — the cooldown is what stops hammering the
-  free tier. Measured: 11 calls, 1 failure, 35 cache hits.
+- **Prose track:** at most **3 concurrent**, **24s** cap, **22s** per-agent
+  cooldown. The twin changes every tick so a content-hash cache can never hit —
+  the cooldown is what stops hammering the free tier.
+- **Decision track:** at most **4 concurrent**, **8s** cap (measured 0.85s),
+  **9s** cooldown, polling every **150ms** so a verdict lands on nearly the same
+  tick as the readings.
 
-**2. Trust.** A flash model is a fallible narrator, not an oracle.
+**2. Trust.** A free model is a fallible narrator, not an oracle.
 
-- It may choose *whether* an action is warranted and *how urgent*.
-- It may **never set the risk score**. Risk is what routes a proposal to the
+- Either track may choose *whether* an action is warranted and *how urgent*.
+- Neither may **set the risk score**. Risk is what routes a proposal to the
   human gate; a model that could lower its own risk could slip something past
   the gate. Risk stays with the deterministic `score_risk()`.
-- It may **not de-escalate**. Severity and urgency may only *rise* from what
+- Neither may **de-escalate**. Severity and urgency may only *rise* from what
   the rules found.
-- An action the model invents that the rules did not find is accepted only if
-  it is in the known 14-action vocabulary, and is always scored **above** the
-  human-gate ceiling — we have no evidence to verify it, so it faces a person.
-- A rule-mandated action the model *omits* is kept anyway. Omission is the one
+- An action a model invents that the rules did not find is always scored
+  **above** the human-gate ceiling — we have no evidence to verify it, so it
+  faces a person. For Jev this is structurally guaranteed too: it picks from a
+  closed `choice` set (`OWNED` + `no_action`) it cannot add to.
+- A low-confidence pick is **refused**, not acted on. Jev's `ACTION_FLOOR` is
+  0.65 and its `WARRANT_FLOOR` is 0.55, and *both* must clear. Refusals are
+  counted and shown in the UI rather than hidden.
+- A rule-mandated action a model *omits* is kept anyway. Omission is the one
   failure we refuse to inherit.
 
-**3. Degradation.** No key, or `AIDUSTRIAL_LLM=off`, and the system is
-byte-for-byte the pre-LLM one. A timeout, a rate limit or a malformed response
-falls back to the rules. A circuit breaker opens after 3 consecutive failures
-for 45s. The original 33 tests pass unchanged.
+**3. Degradation.** No key, or `AIDUSTRIAL_LLM=off` / `AIDUSTRIAL_JEV=off`, and
+that track is byte-for-byte the pre-model system. A timeout, a rate limit or a
+malformed response falls back to the rules. Each track has its own circuit
+breaker: 3 consecutive failures opens it for 45s. The original 33 tests pass
+unchanged.
+
 
 ### The hidden eighth agent
 
@@ -229,18 +300,29 @@ entirely off the graph tick. It even writes its own honesty disclaimer.
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `TOKENHARBOR_API_KEY` | — | Required. Absent = brain disabled, rules only. |
-| `AIDUSTRIAL_LLM` | on | `off` / `0` / `false` / `no` disables everything. |
+| `TOKENHARBOR_API_KEY` | — | Prose track. Absent = no prose, rules only. |
+| `AIDUSTRIAL_LLM` | on | `off` / `0` / `false` / `no` disables the prose track. |
 | `AIDUSTRIAL_LLM_MODEL` | `mimo-v2.6-flash:free` | Any Token Harbor free model. |
 | `AIDUSTRIAL_LLM_BASE` | `https://tokenharbor.ai/v1` | OpenAI-compatible base URL. |
+| `OPENCODE_API_KEY` | — | Decision track. Falls back to the auth store. |
+| `AIDUSTRIAL_JEV` | on | `off` / `0` / `false` / `no` disables the decision track. |
+| `AIDUSTRIAL_JEV_MODEL` | `jev-1.13-free` | Zen SystemOne model id. |
+| `OPENCODE_AUTH_PATH` | `~/.local/share/opencode/auth.json` | Where the fallback key is read from. |
 
 ### What is exposed to the UI
 
-- `snapshot.llm` — `{enabled, model, calls, failures, cache_hits, dropped_actions, last_ms, last_error, agents_reasoned, …}`.
+- `snapshot.llm` — prose track: `{enabled, model, calls, failures, cache_hits, dropped_actions, last_ms, last_error, agents_reasoned}`.
+- `snapshot.decision` — decision track: same shape plus `endpoint` and `rejected_low_confidence`.
 - `snapshot.narration` — narrator stats + recent observations.
-- `mesh.agents[i].thinking` / `.reasoned` / `.rationale` / `.reasoned_by` / `.reasoned_ms` — per-agent live reasoning state.
+- `mesh.agents[i].decided` / `.decided_ms` / `.decided_by` / `.warranted` / `.action_p` — the decision track's live state, including the odds on the action it picked.
+- `mesh.agents[i].thinking` / `.reasoned` / `.rationale` / `.reasoned_by` / `.reasoned_ms` — the prose track's state.
 
-### Two bugs found and fixed here (don't repeat)
+The Agents screen shows **two status lines** ("deciding via …" and "writing via …")
+and each card shows both attributions, which makes the latency contrast visible:
+`decided by jev-1.13-free · 849ms` above `words by mimo-v2.6-flash:free · 15485ms`.
+That contrast is the argument for two tracks, made on the screen.
+
+### Three bugs found while verifying (don't repeat)
 
 - **`request()` used `dict.get()` to mean "in flight."** `get()` returns `None`
   for both an absent key *and* a `None` value, so the guard "if already in
@@ -250,6 +332,12 @@ entirely off the graph tick. It even writes its own honesty disclaimer.
   (`..."confid`) returned `None` and discarded the whole verdict. It now walks
   the string back to the last well-formed prefix. Free models stop mid-key as
   often as mid-value.
+- **A Jev `Decision` with an empty body counted as valid.** `valid` was
+  `bool(self.model)`, and `model` is always set — so `answers: {}` or
+  `{"action": {}}` looked like a confident "nothing to do". It is now
+  `bool(self.model) and self.answered`, where `answered` is only set once an
+  informative answer was actually extracted. A malformed reply must never look
+  like a verdict.
 
 ---
 
@@ -400,7 +488,7 @@ finding.
 cd agent
 uv run --no-project --with "langgraph>=0.2" --with "langchain-core>=0.3" \
   --with fastapi --with uvicorn --with websockets --with httpx --with pytest \
-  python -m pytest tests/ -q                    # expect 59 passed
+  python -m pytest tests/ -q                    # expect 88 passed
 uv run --no-project --with ruff ruff check src/ tests/   # expect clean
 cd ../dashboard
 pnpm exec next build                            # expect "Compiled successfully"
@@ -417,18 +505,17 @@ To confirm reasoning is live (not just rules):
 
 ```bash
 curl -s http://localhost:8781/api/site/demo | python3 -c "
-import json,sys; d=json.load(sys.stdin); l=d.get('llm',{})
-print('enabled', l.get('enabled'), '| calls', l.get('calls'),
-      '| reasoned', l.get('agents_reasoned'), '| err', l.get('last_error') or '-')"
+import json,sys; d=json.load(sys.stdin)
+for k in ('decision','llm'):
+    t=d.get(k,{}); print(k, 'enabled', t.get('enabled'), '| calls', t.get('calls'),
+          '| last_ms', t.get('last_ms'), '| err', t.get('last_error') or '-')"
 ```
 
-Expect `enabled True`, a growing `calls`, and a non-empty `agents_reasoned`
-within ~30s of a tick running. The 33 original tests guard the properties that
-make the demo defensible rather than decorative — that the diurnal curve is a
-real 24 h cycle, that dry-arid heat is genuinely *less* lethal than humid heat,
-that agents never re-propose a satisfied action, and that risk and urgency stay
-independent axes. The 26 new tests in `test_llm.py` guard the safety invariants
-of the reasoning layer.
+Expect `enabled True` for both, a growing `calls`, and `last_ms` near **900ms**
+for the decision track and in the **thousands** for the prose track. Within ~30s
+of a tick running, `agents_decided` / `agents_reasoned` should be non-empty.
+A non-zero `rejected_low_confidence` is healthy — it is the gate refusing a
+guessy pick, and it is shown in the UI rather than hidden.
 
 ---
 
@@ -441,11 +528,20 @@ of the reasoning layer.
 - **The LLM never sets a risk score.** `score_risk()` is deterministic and
   decides whether a human is consulted. A model that could lower its own risk
   could slip an action past the gate. If you add a model-driven score anywhere,
-  you have broken the HITL argument.
+  you have broken the HITL argument. Both reasoning tracks obey this.
 - **A model may escalate, never de-escalate.** Severity and urgency may only
   rise from what the rules found. The rules are the floor, not a suggestion.
 - **A model-proposed action is always gated.** No evidence to verify it means it
   faces a person. Never let a model-originated action auto-approve.
+- **Keep the Jev choice set closed.** `build_jev_questions` builds the `choice`
+  criteria from `OWNED` + `no_action`. Do not widen it with a free-text
+  "other" option, and do not accept a choice that is not a key of that dict.
+  The closed set is why an agent structurally cannot be handed an action it
+  does not own — a stronger guarantee than filtering a string after the fact.
+- **Refuse low-confidence picks; count them.** Jev returns probabilities for a
+  reason. Below `ACTION_FLOOR` (0.65) *and* `WARRANT_FLOOR` (0.55), both, the
+  pick is not merged. Increment the counter and let the UI show it — silently
+  acting on a 0.53 is how a demo stops being honest.
 - **Every user-facing string goes in `dashboard/lib/language.ts`.** No jargon
   in the UI. Name things by what they *do* ("Cow food", not "Crop production").
   Technical terms live behind a "details" disclosure.
@@ -478,8 +574,9 @@ of the reasoning layer.
 ## Honest status / what's left
 
 **Judge-ready** for the pitch: mission-control shell, seven visibly distinct
-agents with live flashing readings, **agents that genuinely reason via a free
-LLM with a hidden narrator**, signal-flow diagram, working HITL gate, modal
+agents with live flashing readings, **agents that genuinely reason on two
+tracks** (Jev decides in ~0.9s with visible probabilities, flash writes the
+prose), plus a hidden narrator, signal-flow diagram, working HITL gate, modal
 tour, plain-language layer throughout, screenshot-friendly.
 
 Known loose ends, in rough priority order:
@@ -491,17 +588,23 @@ Known loose ends, in rough priority order:
    live flashing treatment the Agents view has. Giving each a per-field live
    panel with `LiveNumber` + `StatusChip` is the obvious next step.
 3. **The README is stale** — it still says "four specialist agents" and "23
-   tests". Actual: seven agents, 59 tests. Rewrite it to match this file.
+   tests". Actual: seven agents, 88 tests. Rewrite it to match this file.
 4. **Only the agents triage wakes get a reasoning call.** That is correct (an
    agent with nothing to look at should not burn the free tier) but it means a
    quiet scenario shows 2–3 agents reasoning, not 7. If you want more visible
    reasoning, either widen `triage`'s wake rules or add a low-priority "every
    agent reasons every N seconds" sweep.
-5. **Reasoning latency is 6–24s** on the free tier. The tick never blocks, so
-   the dashboard stays live, but a verdict arrives a few ticks late. A paid
-   model would cut this to ~1s. `AIDUSTRIAL_LLM_MODEL` is the only knob.
-6. **No real photo/thumbnail per agent** — optional warmth, low priority.
-7. **The Adrar twin is simulated.** The moment real telemetry exists, point
+5. **Prose latency is still 12–66s on the free tier.** Decisions no longer lag
+   (Jev is ~0.9s), but the written rationale does, and the tick never blocks on
+   it. A paid model would cut this to ~1s. `AIDUSTRIAL_LLM_MODEL` is the knob.
+   The visible `decided by … · 849ms` over `words by … · 15485ms` contrast on
+   the cards is intentional — it is the argument for two tracks, on screen.
+6. **Jev sometimes contradicts itself** — e.g. an action at 76% confidence
+   alongside a "not warranted" answer. Both gates must clear, so this is
+   refused rather than acted on. If it turns out to be common rather than
+   occasional, consider asking only the `choice` and inferring warrant from it.
+7. **No real photo/thumbnail per agent** — optional warmth, low priority.
+8. **The Adrar twin is simulated.** The moment real telemetry exists, point
    `sensors.py` at it and the rest of the stack is unchanged.
 
 ---
