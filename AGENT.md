@@ -17,8 +17,14 @@ software where specialist agents watch a facility, each holding a narrow
 mandate, hand findings to a coordinator, and stop to ask a human before anything
 consequential happens.
 
-The live demonstration is **Baladna Algeria S.P.A.**, the USD 3.5 bn integrated
-dairy and milk-powder project in Adrar Province, Algerian Sahara.
+The demo is built **around** Baladna Algeria S.P.A., the USD 3.5 bn integrated
+dairy and milk-powder project in Adrar Province, Algerian Sahara — using that
+project's published parameters as the source of every number in the twin.
+
+**There is no relationship with Baladna.** Not a partner, not engaged, no
+contact. The site was chosen for its constraints, and the architecture (the
+tool boundary in particular) exists so this could be integrated there in full
+if a partnership ever becomes real. Never imply otherwise in copy.
 
 The demo exists to make one idea undeniable to judges and investors:
 

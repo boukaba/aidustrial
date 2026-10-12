@@ -1,7 +1,13 @@
 # aidustrial — pitch
 
 **One line:** An agentic operations layer for industrial agro-complexes.
-Demonstrated live on the Baladna Algeria mega-dairy in Adrar.
+Built around the published parameters of the Baladna Algeria mega-dairy in Adrar.
+
+> **Relationship:** we have none. Not a partner, not engaged, no contact with
+> Baladna. The project was entirely imagined around that site's real, public
+> data and numbers, because its constraints are the clearest demonstration of
+> the problem. The architecture is built to be integrated there in full if a
+> partnership ever becomes real — the tool boundary is the seam.
 
 ---
 

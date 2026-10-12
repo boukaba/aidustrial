@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "aidustrial — Adrar Operations Command",
   description:
-    "Agentic operations layer for the Baladna Algeria integrated dairy complex, Adrar Province.",
+    "An agentic operations layer for industrial agro-complexes, built around the published parameters of the Baladna Algeria project, Adrar Province.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

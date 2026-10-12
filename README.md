@@ -2,8 +2,16 @@
 
 An agentic operations layer for industrial agro-complexes.
 
-**Live demonstration:** Baladna Algeria S.P.A. — the USD 3.5 billion integrated
-dairy and milk powder project in Adrar Province, Wilaya of Adrar, Algerian Sahara.
+**Built around:** Baladna Algeria — the USD 3.5 billion integrated dairy and
+milk powder project in Adrar Province, Wilaya of Adrar, Algerian Sahara.
+Every parameter in the twin comes from that project's published figures.
+
+We have no relationship with Baladna and are not in contact with them. The site
+was chosen for its constraints, not its connections: 270,000 head on a
+non-renewable fossil aquifer, misting hardware in only 4 of 8 barns, and a herd
+arriving by air before its fodder programme has grown. The tool boundary
+(`tools/sensors.py`) is the seam — the system could be integrated there in full
+if a partnership ever becomes real.
 
 ---
 

@@ -286,11 +286,11 @@ export default function Command() {
 
         <footer className="mt-8 border-t border-ink-800 pt-3">
           <p className="text-[10px] leading-relaxed text-slate-600">
-            This is a working model of the Baladna Algeria project in Adrar — a $3.5bn dairy
-            farm under construction, whose first 30,000 animals are mostly heifers that will not
-            give milk for about 18 months. That is why automated monitoring is worth putting in
-            now, before the animals arrive. Every reading is simulated from published project
-            parameters.{" "}
+            This is a working model built around the Baladna Algeria project in Adrar — a
+            $3.5bn dairy farm under construction, whose first 30,000 animals are mostly heifers
+            that will not give milk for about 18 months. That is why automated monitoring is
+            worth putting in now, before the animals arrive. We have no relationship with that
+            project; every reading here is simulated from its published parameters.{" "}
             <button
               onClick={() => setPanel(true)}
               className="text-slate-500 underline decoration-dotted underline-offset-2"
