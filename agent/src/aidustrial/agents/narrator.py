@@ -32,7 +32,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from ..tools import sensors
-from ..tools.llm import CALL_TIMEOUT_S, DEFAULT_BASE, DEFAULT_MODEL, _enabled
+from ..tools.llm import _enabled
 
 #: Seconds between narrations. Slow on purpose: this is ambient colour, not a
 #: decision feed, and every call competes with the seven agents for the free
@@ -131,33 +131,13 @@ class Narrator:
     # -- internals ------------------------------------------------------
 
     async def _narrate(self) -> list[str]:
-        import httpx
+        from ..tools.llm import _ZEN_CLIENT
 
-        key = _api_key()
-        if not key:
+        if not _enabled():
             return []
         p = sensors.GW.packet() if sensors.GW else {}
         prompt = _build_user_prompt(p)
-        body = {
-            "model": _model(),
-            "temperature": 0.4,
-            "max_tokens": 300,
-            "messages": [
-                {"role": "system", "content": _SYSTEM},
-                {"role": "user", "content": prompt},
-            ],
-        }
-        async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as client:
-            resp = await client.post(
-                f"{_base()}/chat/completions",
-                json=body,
-                headers={
-                    "Authorization": f"Bearer {key}",
-                    "Content-Type": "application/json",
-                },
-            )
-            resp.raise_for_status()
-            raw = resp.json()["choices"][0]["message"]["content"]
+        raw = await _ZEN_CLIENT.complete(_SYSTEM, prompt)
         return _parse_observations(raw)
 
 
@@ -221,24 +201,6 @@ def _parse_observations(raw: str) -> list[str]:
     if not isinstance(obs, list):
         return []
     return [str(o)[:300] for o in obs[:3] if str(o).strip()]
-
-
-def _api_key() -> str:
-    import os
-
-    return os.getenv("TOKENHARBOR_API_KEY", "").strip()
-
-
-def _model() -> str:
-    import os
-
-    return os.getenv("AIDUSTRIAL_LLM_MODEL", "").strip() or DEFAULT_MODEL
-
-
-def _base() -> str:
-    import os
-
-    return os.getenv("AIDUSTRIAL_LLM_BASE", "").strip() or DEFAULT_BASE
 
 
 #: Module singleton, matching the brain.

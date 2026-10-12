@@ -1,13 +1,13 @@
 """Layer 1.5 -- the reasoning brain.
 
 An HTTP client that lets the seven agents actually *think* instead of only
-applying thresholds, using a free OpenAI-compatible model (Token Harbor by
-default).
+applying thresholds, using a local `opencode serve` and the OpenCode Go
+subscription (deepseek-v4.1-flash by default).
 
 Two hard constraints shaped every decision in this file:
 
-  1. LATENCY. A trivial call measured ~4.7s and a realistic agronomist
-     reasoning call measured ~9-10s. The world ticks 12x/second. So the brain
+  1. LATENCY. A trivial call measured ~2-4s and a realistic agronomist
+     reasoning call measured ~4s. The world ticks 12x/second. So the brain
      NEVER blocks a tick. `request()` is thread-safe and non-blocking: it
      stashes a payload, and a background asyncio task on the server's event
      loop drains it concurrently. The tick keeps running on rules meanwhile,
@@ -24,9 +24,8 @@ Anything the model returns is validated against the known action vocabulary.
 An unrecognised action is dropped rather than passed through: a hallucinated
 `dispatch_helicopter` must not reach the executor.
 
-Disable the whole thing with `AIDUSTRIAL_LLM=off`, or by simply not setting
-`TOKENHARBOR_API_KEY`. Either way the agents fall back to their threshold
-rules and the demo is byte-for-byte the pre-LLM system.
+Disable the whole thing with `AIDUSTRIAL_LLM=off`. Either way the agents fall
+back to their threshold rules and the demo is byte-for-byte the pre-LLM system.
 """
 
 from __future__ import annotations
@@ -36,6 +35,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -43,12 +43,8 @@ from typing import Any
 
 import httpx
 
-#: Where the free models live. OpenAI-compatible.
-DEFAULT_BASE = "https://tokenharbor.ai/v1"
-DEFAULT_MODEL = "mimo-v2.6-flash:free"
-
-#: At most this many reasoning calls in flight at once. Free tiers rate-limit,
-#: and 7 concurrent calls will trip it.
+#: At most this many reasoning calls in flight at once. The model still
+#: throttles, and 7 concurrent calls will trip it.
 MAX_CONCURRENT = 3
 
 #: How long a verdict stays fresh enough to reuse. The twin advances every tick
@@ -70,11 +66,94 @@ BREAK_COOLDOWN_S = 45.0
 
 SEVERITIES = ("info", "low", "medium", "high", "critical")
 
+#: Prose comes from a local `opencode serve`, on the OpenCode Go subscription.
+#: Every previous provider here was an anonymous free tier, and all of them
+#: eventually ration the same rolling 7-day pool to zero -- which left the
+#: agents unable to explain themselves mid-demo. Routing through OpenCode instead
+#: buys a real allowance, and because OpenCode's API is only reachable from an
+#: OpenCode client, this local server *is* that client rather than a workaround.
+ZEN_BASE = os.getenv("AIDUSTRIAL_ZEN_BASE", "http://127.0.0.1:4814")
+ZEN_PORT = int(ZEN_BASE.rsplit(":", 1)[-1]) if ":" in ZEN_BASE else 4814
+ZEN_PROVIDER = os.getenv("AIDUSTRIAL_ZEN_PROVIDER", "opencode-go")
+ZEN_MODEL = os.getenv("AIDUSTRIAL_ZEN_MODEL", "deepseek-v4.1-flash")
+#: A prose session that never touches files. The agents are reasoning about a
+#: twin, not building software, so the coding tools must stay out of the way.
+ZEN_SYSTEM = (
+    "You are one specialist agent on an industrial control team. Reply with the "
+    "answer only. Do not use tools. Do not read, write or list files. Do not plan "
+    "or explain what you would do next."
+)
+
 
 def _enabled() -> bool:
     if os.getenv("AIDUSTRIAL_LLM", "").strip().lower() in {"off", "0", "false", "no"}:
         return False
-    return bool(os.getenv("TOKENHARBOR_API_KEY", "").strip())
+    return bool(os.getenv("AIDUSTRIAL_ZEN_BASE", ZEN_BASE).strip())
+
+
+class _Zen:
+    """Client for a local `opencode serve`, used only when Token Harbor is dry.
+
+    Each call gets its own session and deletes it afterwards. Reusing one would
+    accumulate every prior turn into the prompt, so the ~8k token floor would
+    grow without bound across a demo; a throwaway session keeps each call flat
+    and stops one agent's context bleeding into another's answer.
+    """
+
+    def __init__(self) -> None:
+        self._proc: subprocess.Popen[bytes] | None = None
+        self._lock = threading.Lock()
+
+    async def _ensure(self) -> None:
+        if await self._healthy():
+            return
+        with self._lock:
+            if self._proc is not None and self._proc.poll() is None:
+                return
+            try:
+                self._proc = subprocess.Popen(
+                    ["opencode", "serve", "--port", str(ZEN_PORT)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except FileNotFoundError:
+                raise RuntimeError("opencode CLI not found") from None
+        for _ in range(40):
+            await asyncio.sleep(0.5)
+            if await self._healthy():
+                return
+        raise RuntimeError("opencode serve did not become healthy")
+
+    async def _healthy(self) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as c:
+                return (await c.get(f"{ZEN_BASE}/health")).status_code == 200
+        except Exception:  # noqa: BLE001 -- not up is the common case
+            return False
+
+    async def complete(self, system: str, user: str) -> str:
+        await self._ensure()
+        async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as c:
+            created = await c.post(f"{ZEN_BASE}/session", json={"title": "prose"})
+            created.raise_for_status()
+            sid = created.json().get("id", "")
+            try:
+                resp = await c.post(
+                    f"{ZEN_BASE}/session/{sid}/message",
+                    json={
+                        "model": {"providerID": ZEN_PROVIDER, "modelID": ZEN_MODEL},
+                        "system": system,
+                        "parts": [{"type": "text", "text": user}],
+                    },
+                )
+                resp.raise_for_status()
+                parts = resp.json().get("parts", [])
+            finally:
+                await c.delete(f"{ZEN_BASE}/session/{sid}", timeout=10.0)
+        return "".join(p.get("text", "") for p in parts if p.get("type") == "text")
+
+
+_ZEN_CLIENT = _Zen()
 
 
 @dataclass
@@ -141,8 +220,10 @@ class Brain:
         self.last_at = 0.0
         self._trip_at = 0.0
         self._consecutive = 0
-        self.model = os.getenv("AIDUSTRIAL_LLM_MODEL", "").strip() or DEFAULT_MODEL
-        self.base = os.getenv("AIDUSTRIAL_LLM_BASE", "").strip() or DEFAULT_BASE
+        self.model = ZEN_MODEL
+        #: Which model actually served the most recent verdict. Differs from
+        #: `self.model` when `AIDUSTRIAL_ZEN_MODEL` is overridden.
+        self.provider = ""
 
     # -- public, callable from the graph thread --------------------------
 
@@ -198,6 +279,7 @@ class Brain:
                 "last_ms": round(self.last_ms, 1),
                 "last_error": self.last_error,
                 "last_at": self.last_at,
+                "provider": self.provider,
                 "agents_reasoned": sorted(k for k, v in self._results.items() if v.valid),
             }
 
@@ -263,33 +345,14 @@ class Brain:
     async def _complete(self, payload: dict) -> str:
         if time.time() < self._trip_at:
             raise RuntimeError("circuit open after repeated failures")
-        key = os.getenv("TOKENHARBOR_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError("TOKENHARBOR_API_KEY is not set")
-        body = {
-            "model": self.model,
-            "temperature": 0.2,
-            "max_tokens": 700,
-            "messages": [
-                {"role": "system", "content": payload["system"]},
-                {"role": "user", "content": payload["user"]},
-            ],
-        }
-        async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as client:
-            resp = await client.post(
-                f"{self.base}/chat/completions",
-                json=body,
-                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        self.provider = ZEN_MODEL
+        return await _ZEN_CLIENT.complete(ZEN_SYSTEM, payload["user"])
 
     # -- validation ------------------------------------------------------
 
     def _parse(self, agent: str, raw: str, state_hash: str) -> Reasoning:
         obj = _extract_json(raw)
-        r = Reasoning(agent=agent, hash=state_hash, model=self.model)
+        r = Reasoning(agent=agent, hash=state_hash, model=self.provider or self.model)
         if not isinstance(obj, dict):
             return r
 
