@@ -487,10 +487,14 @@ def gate(state: FarmState) -> dict:
 
 
 def execute(state: FarmState) -> dict:
-    """Apply everything that cleared the risk ceiling. Gated actions are held."""
+    """Apply everything that cleared its action ceiling. Gated actions are held."""
+    from ..tools import ledger
+    from ..twin import policy
+
     world = sensors.current().world
     held = {a.action_id for a in state.get("gate_queue") or []}
     done, trace = [], []
+    sim_time = str(state.get("sim_time", ""))
 
     for p in state.get("proposals") or []:
         if p.action_id in held:
@@ -500,15 +504,40 @@ def execute(state: FarmState) -> dict:
         result = world.apply_action(p.action, p.target)
         done.append({"action": p.action, "target": p.target, "result": result,
                      "approved_by": "auto-policy"})
+
+        # An action that ran without a human is still a decision, and the
+        # ledger is the proof it happened unattended.
+        reason = p.gate_reason()
+        ledger.record_decision(
+            agent=p.requested_by,
+            action=p.action,
+            target=p.target,
+            risk_score=p.risk_score,
+            urgency_score=p.urgency_score,
+            severity=p.severity,
+            required_human=False,
+            gate_reason=reason,
+            approved_by="auto-policy",
+            rationale=p.rationale,
+            sim_time=sim_time,
+        )
+        if p.action == "notify_technician":
+            ledger.open_work_order(
+                who=p.target or "maintenance", note=p.rationale, sim_time=sim_time
+            )
+
+        ceiling = policy.ceiling_for(p.action)
+        shown = "never auto" if ceiling is None else f"{ceiling:.0f}"
         trace.append(
             trace_event(
                 "orchestrator",
                 "execute",
-                f"AUTO: {p.action} ({p.target}) → {result}. Risk {p.risk_score:.0f} < ceiling "
-                f"{C.RISK_AUTO_APPROVE_CEILING:.0f}.",
+                f"AUTO: {p.action} ({p.target}) → {result}. Risk {p.risk_score:.0f}, "
+                f"ceiling {shown}.",
             )
         )
     return {"executed": done, "trace": trace}
+
 
 
 def human_gate(state: FarmState) -> dict:
@@ -542,7 +571,16 @@ def human_gate(state: FarmState) -> dict:
         decided_at_tick=int(state.get("tick", 0)),
     )
 
-    result = sensors.current().world.apply_action(top.action, top.target)
+    world = sensors.current().world
+    if approved:
+        result = world.apply_action(top.action, top.target)
+    else:
+        # A rejection is a decision, not an execution. Record it in the same
+        # cooldown window so the agent does not immediately ask again, but do
+        # not touch the twin.
+        world.record_rejection(top.action, top.target)
+        result = "rejected — no change"
+
     record = {"action": top.action, "target": top.target, "result": result,
               "approved_by": "farm_director", "note": note}
 
