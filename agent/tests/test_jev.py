@@ -165,8 +165,15 @@ def test_every_owned_action_has_a_readable_label():
 
 
 def test_questions_offer_only_own_actions_plus_no_action():
-    q = build_jev_questions("veterinarian")
-    assert set(q["action"]["criteria"]) == {"enable_misters", "shed_load", NO_ACTION}
+    # The invariant is that the choice set is CLOSED: exactly the agent's own
+    # actions plus "no action", never a neighbour's. Deriving it from OWNED
+    # means adding an action to an agent updates this test instead of breaking
+    # it -- the thing being protected is the boundary, not a frozen list.
+    for agent, owned in OWNED.items():
+        q = build_jev_questions(agent)
+        assert set(q["action"]["criteria"]) == set(owned) | {NO_ACTION}, agent
+
+    # No cross-agent leakage.
     q2 = build_jev_questions("milking")
     assert NO_ACTION in q2["action"]["criteria"]
     assert "enable_misters" not in q2["action"]["criteria"]

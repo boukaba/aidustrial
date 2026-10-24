@@ -68,9 +68,9 @@ MAX_TOTAL_BYTES = 6000
 #: agent only its own verbs measurably cut hallucinated actions.
 OWNED: dict[str, tuple[str, ...]] = {
     "agronomist": ("start_pivot", "shed_pivot"),
-    "maintenance": ("repair_pivot", "restart_inlet"),
+    "maintenance": ("repair_pivot", "restart_inlet", "notify_technician"),
     "logistics": ("reroute_convoy",),
-    "veterinarian": ("enable_misters", "shed_load"),
+    "veterinarian": ("enable_misters", "shed_load", "set_ventilation", "set_lighting"),
     "crop": ("harvest_field", "start_pivot"),
     "calving": ("boost_heifer_rations", "isolate_calves"),
     "milking": ("service_parlour", "clean_condenser", "cull_chronic_mastitis", "halt_intake"),
@@ -95,6 +95,10 @@ ACTION_LABELS: dict[str, str] = {
     "clean_condenser": "Clean the milk condenser / chiller",
     "cull_chronic_mastitis": "Cull cows with chronic mastitis",
     "halt_intake": "Halt milk intake and hold the tanker",
+    # Autonomous by policy: reversible, or no physical change at all.
+    "set_lighting": "Set barn lighting for the current period",
+    "set_ventilation": "Raise or lower barn ventilation fans",
+    "notify_technician": "Open a work order and send a technician to the site",
 }
 
 #: Ceiling on the compact state text handed to Jev. ~400 input tokens measured

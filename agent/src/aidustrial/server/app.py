@@ -13,22 +13,25 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
 from ..agents.narrator import NARRATOR
-from ..agents.specialists import ALL_AGENTS
 from ..graph.orchestrator import ALL as ALL_MESH
 from ..graph.orchestrator import GRAPH
-from ..tools import sensors
+from ..tools import ledger, sensors
 from ..tools.jev import JEVS
 from ..tools.llm import BRAIN
 from ..twin import constants as C
+from ..twin import policy
 from ..twin.world import World
 
 app = FastAPI(title="aidustrial", version="0.1.0")
@@ -56,6 +59,9 @@ async def _start_brain() -> None:
     narrator runs on its own slower cadence and is purely decorative prose.
     """
     global _brain_task, _jev_task, _narrator_task
+    # The audit trail must outlive the process, so it is opened before anything
+    # can record into it.
+    ledger.configure()
     loop = asyncio.get_running_loop()
     BRAIN.bind_loop(loop)
     JEVS.bind_loop(loop)
@@ -97,7 +103,12 @@ class Session:
     awaiting_decision: bool = False
     orchestration: dict = field(default_factory=dict)
     decision_log: list[dict] = field(default_factory=list)
+    #: The graph returns its whole append-only decision log on every resume.
+    #: Track how much of it the session has already copied so the audit trail
+    #: does not show the same verdict three times.
+    decision_log_seen: int = 0
     auto_executed: list[dict] = field(default_factory=list)
+    auto_executed_seen: int = 0
     dispatch_log: list[dict] = field(default_factory=list)
 
     def snapshot(self) -> dict:
@@ -315,13 +326,23 @@ async def drive(session: Session, approved: dict | None = None) -> None:
     session.findings = [
         f.to_dict() for f in (out.get("findings") or [])
     ][-14:]
-    session.auto_executed = list(session.auto_executed) + [
+    auto_log = [
         e for e in (out.get("executed") or [])
         if e.get("approved_by") == "auto-policy"
-    ][-15:]
+    ]
+    if len(auto_log) < session.auto_executed_seen:
+        session.auto_executed_seen = 0
+    session.auto_executed.extend(auto_log[session.auto_executed_seen:])
+    session.auto_executed_seen = len(auto_log)
+    session.auto_executed = session.auto_executed[-15:]
 
-    for d in out.get("decision_log") or []:
-        session.decision_log.append(d)
+    graph_log = out.get("decision_log") or []
+    if len(graph_log) < session.decision_log_seen:
+        # The checkpoint was reset; start copying from the beginning again.
+        session.decision_log_seen = 0
+    for entry in graph_log[session.decision_log_seen:]:
+        session.decision_log.append(entry)
+    session.decision_log_seen = len(graph_log)
 
     it = out.get("__interrupt__")
     payload = it[0].value if it else None
@@ -341,7 +362,7 @@ async def drive(session: Session, approved: dict | None = None) -> None:
 async def health() -> dict:
     return {
         "ok": True,
-        "agents": [a.name for a in ALL_AGENTS],
+        "agents": [a.name for a in ALL_MESH],
         "sessions": len(SESSIONS),
         "provenance": C.provenance,
     }
@@ -374,15 +395,62 @@ async def decide(thread_id: str, body: dict) -> dict:
     if not s.awaiting_decision:
         return {"error": "no decision pending"}
 
+    pending = s.pending or {}
+    action = pending.get("action") or {}
+    approved = bool(body.get("approved"))
+    note = str(body.get("note", ""))
+
+    gate_reason = "human gate"
+    try:
+        from ..tools.actions import Action
+
+        fields = {k: v for k, v in action.items() if k in Action.__dataclass_fields__}
+        gate_reason = Action(**fields).gate_reason()
+    except Exception:  # noqa: BLE001, S110 -- the ledger must never block a verdict
+        pass
+
+    # Write the verdict BEFORE resuming, so a crash mid-resume still leaves the
+    # decision on record. An audit log that can lose the entry it was created
+    # to keep is not an audit log.
+    ledger.record_decision(
+        agent=str(action.get("requested_by", "")),
+        action=str(action.get("action", "")),
+        target=str(action.get("target", "")),
+        risk_score=float(action.get("risk_score", 0) or 0),
+        urgency_score=float(action.get("urgency_score", 0) or 0),
+        severity=str(action.get("severity", "")),
+        required_human=True,
+        gate_reason=gate_reason,
+        approved_by="human" if approved else "rejected",
+        note=note,
+        rationale=str(action.get("rationale", "")),
+        sim_time=str(pending.get("sim_time", "")),
+    )
+
     await drive(
         s,
         approved={
-            "approved": bool(body.get("approved")),
-            "note": str(body.get("note", "")),
+            "approved": approved,
+            "note": note,
         },
     )
     await broadcast(s)
     return {"ok": True, "awaiting_decision": s.awaiting_decision, "pending": s.pending}
+
+
+@app.get("/api/ledger")
+async def ledger_view(limit: int = 50, agent: str | None = None) -> dict:
+    """The audit trail, readable and persistent.
+
+    This is the endpoint that makes the product's promise checkable: every
+    decision that ever reached a human, who answered it, and why it was gated.
+    """
+    return {
+        "stats": ledger.stats(),
+        "decisions": ledger.recent_decisions(limit=limit, agent=agent),
+        "events": ledger.recent_events(limit=limit, agent=agent),
+        "policy": policy.describe(),
+    }
 
 
 async def broadcast(session: Session) -> None:
@@ -436,3 +504,21 @@ async def stream(ws: WebSocket, thread_id: str = "demo", speed: float = 12.0) ->
         pass
     finally:
         session.subscribers.discard(ws)
+
+
+# ---------------------------------------------------------------------------
+# Static dashboard (single-container deployment)
+# ---------------------------------------------------------------------------
+
+#: The Docker image builds the Next.js dashboard into `/app/static`. Locally
+#: this directory does not exist, so the API runs on its own and the dashboard
+#: is served by `next dev` on :3010. Mounting after the API/WebSocket routes
+#: means it never shadows them.
+_STATIC_DIR = Path(
+    os.getenv(
+        "AIDUSTRIAL_STATIC_DIR",
+        str(Path(__file__).resolve().parents[3] / "static"),
+    )
+)
+if _STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(_STATIC_DIR), html=True), name="dashboard")

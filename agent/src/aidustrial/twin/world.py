@@ -74,6 +74,20 @@ class World:
     #: re-proposal of something it just did. A repair that is working does not
     #: need asking about again five minutes later.
     recent_actions: dict[tuple[str, str], int] = field(default_factory=dict)
+    #: State for the actions that run without a human. Kept separate from the
+    #: physical twin because these are conveniences, not site conditions: a
+    #: wrong lighting call must never be able to distort a herd reading.
+    autonomy: dict = field(default_factory=dict)
+    #: Work orders opened by the notify action. These are the artefacts a human
+    #: is asked to act on, and they are what the ledger persists.
+    work_orders: list = field(default_factory=list)
+    #: Rejections need a longer memory than executions. At demo speed 24 ticks
+    #: is under two seconds of wall-clock time, so the same proposal would come
+    #: straight back and look like nagging. Six simulated days is long enough
+    #: for the situation to have genuinely changed.
+    rejected_actions: dict[tuple[str, str], int] = field(default_factory=dict)
+
+    REJECTION_COOLDOWN_TICKS = 288
 
     def __post_init__(self) -> None:
         self._rng = random.Random(self.seed)
@@ -103,9 +117,27 @@ class World:
         return self.env.th_i()
 
     def acted_recently(self, action: str, target: str, within_ticks: int = 24) -> bool:
-        """True if this exact action was performed on this target recently."""
+        """True if this exact action was performed or rejected recently."""
         last = self.recent_actions.get((action, target))
-        return last is not None and (self.env.clock.tick - last) < within_ticks
+        if last is not None and (self.env.clock.tick - last) < within_ticks:
+            return True
+        rejected = self.rejected_actions.get((action, target))
+        return (
+            rejected is not None
+            and (self.env.clock.tick - rejected) < self.REJECTION_COOLDOWN_TICKS
+        )
+
+    def record_rejection(self, action: str, target: str = "") -> None:
+        """Remember a rejected proposal without changing the world.
+
+        Rejection must not mutate the twin, but it must still enter a cooldown
+        window. Otherwise the next tick proposes the identical action again and
+        trains the director to approve reflexively -- the exact failure the
+        cooldown exists to prevent. Rejections get a longer window than
+        executions because a rejected decision deserves more than a couple of
+        wall-clock seconds before the agent asks again.
+        """
+        self.rejected_actions[(action, target)] = self.env.clock.tick
 
     @property
     def solar_exposure(self) -> float:
@@ -651,6 +683,35 @@ class World:
 
         if action == "quarantine_group":
             return f"{target} flagged for veterinary quarantine protocol"
+
+        # --- AUTONOMOUS: NO HUMAN IN THE LOOP ---
+        # These run on their own by policy (see twin/policy.py). Each was chosen
+        # because a wrong call costs comfort, a message, or a few minutes of a
+        # technician's time -- never water, welfare, money or an animal.
+        if action == "set_lighting":
+            level = (target or "on").strip()
+            self.autonomy["lighting"] = level
+            return f"Lighting set to {level} across the barns (no approval needed)"
+
+        if action == "set_ventilation":
+            try:
+                pct = float(str(target).strip() or 60)
+            except ValueError:
+                pct = 60.0
+            pct = max(0.0, min(100.0, pct))
+            self.autonomy["ventilation_pct"] = pct
+            return f"Ventilation set to {pct:.0f}% (no approval needed)"
+
+        if action == "notify_technician":
+            who = (target or "maintenance").strip()
+            order = {
+                "tick": self.env.clock.tick,
+                "at": self.env.clock.label() if hasattr(self.env.clock, "label") else "",
+                "who": who,
+                "status": "open",
+            }
+            self.work_orders.append(order)
+            return f"Work order opened for {who} (no approval needed; nothing physical changed)"
 
         return f"no-op: unknown action {action}"
 

@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Literal
 
 from ..twin import constants as C
+from ..twin import policy
 
 Severity = Literal["info", "low", "medium", "high", "critical"]
 
@@ -56,8 +57,14 @@ class Action:
     def risk_factors(self) -> list[str]:
         """Human-readable reasons this scored what it scored. Shown in the UI."""
         f: list[str] = []
-        if self.action in C.ALWAYS_GATE_ACTIONS:
-            f.append(f"policy: '{self.action}' is on the always-gate list")
+        tier = policy.rule_for(self.action).tier
+        if tier == "always_gate":
+            f.append(f"policy: '{self.action}' is always gated -- no score makes it safe")
+        elif tier == "autonomous":
+            f.append(f"policy: '{self.action}' runs without a human ({policy.rule_for(self.action).why})")
+        else:
+            ceiling = policy.ceiling_for(self.action)
+            f.append(f"policy: auto below a risk score of {ceiling:.0f}")
         if not self.reversible:
             f.append("irreversible -- cannot be undone by the system")
         if self.severity == "critical":
@@ -78,9 +85,12 @@ class Action:
         return f or ["no elevated factors -- routine"]
 
     def requires_human(self) -> bool:
-        return self.action in C.ALWAYS_GATE_ACTIONS or (
-            self.risk_score >= C.RISK_AUTO_APPROVE_CEILING
-        )
+        """Whether this action must stop for a person, per the autonomy policy."""
+        return policy.requires_human(self.action, self.risk_score)[0]
+
+    def gate_reason(self) -> str:
+        """One phrase explaining the governance call, for the audit log."""
+        return policy.requires_human(self.action, self.risk_score)[1]
 
     def urgency_band(self) -> str:
         if self.urgency_score >= 80:
