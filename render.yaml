@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: aidustrial
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # The container ships without OpenCode credentials, so the public demo
+      # runs on the deterministic rules and the human gate. Do not fake the
+      # reasoning layer on a public URL.
+      - key: AIDUSTRIAL_LLM
+        value: "off"
+      - key: AIDUSTRIAL_JEV
+        value: "off"
