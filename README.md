@@ -57,6 +57,49 @@ The regression test for the approve/reject contract is in
 `agent/tests/test_aidustrial.py`; it snapshots the world before a rejection and
 asserts byte-for-byte equality afterwards.
 
+### Autonomy is tiered, not one number
+
+`agent/src/aidustrial/twin/policy.py` decides which actions may run without a
+person. It is configuration no model can reach:
+
+| Tier | What it covers | Rule |
+|---|---|---|
+| **Runs alone** | lighting, dispatching a technician | no physical change, so any risk score is safe |
+| **Bounded** | ventilation, misting | auto below **25**, stricter than the global ceiling |
+| **Default** | everything else | auto below **40** |
+| **Always a human** | water transfer, pivot restart, shed load, convoy reroute, quarantine | never auto, whatever the score |
+
+A per-action ceiling may only ever be *stricter* than the global one, so a
+future retune cannot widen autonomy past the gate. `agent/tests/test_policy.py`
+asserts exactly that, plus that every always-gate action refuses to auto-execute
+at risk 0, 10, 39 and 100.
+
+### The audit trail survives the process
+
+`agent/src/aidustrial/tools/ledger.py` writes every decision to SQLite — agent,
+action, risk, verdict, and the reason it was gated — alongside events, work
+orders and chat history. `GET /api/ledger` returns it, plus the policy table.
+
+An action taken without a human is recorded too, marked `auto-policy` with the
+ceiling it cleared. The claim being protected is simple: "auditable" should not
+mean "auditable until the process exits".
+
+### Ask a specialist
+
+`agent/src/aidustrial/tools/agentchat.py` lets you put a question to any agent.
+It answers from three places: its live readings, retrieved passages from the
+eight-document corpus (`agent/knowledge/`), and its own events and decisions from
+the ledger. Replies carry their citations.
+
+Retrieval is SQLite FTS5 — no embeddings, no vector service, no model download.
+The corpus is dense with exact tokens (`PIVOT-3`, `mm/s`, `SCC`) that BM25
+matches well, and a retrieval layer that cannot fail a container build is worth
+more here than one that scores marginally better.
+
+When no prose model is configured the same evidence is composed deterministically,
+so the chat still works on a deployment without credentials.
+
+
 ## Run it locally
 
 Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+, pnpm.
@@ -170,8 +213,10 @@ not a fan-out. Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 - **Frontend:** Next.js 15, React 19, TypeScript, Tailwind CSS, pnpm
 - **AI:** OpenCode Zen / Jev for typed decisions; OpenCode Go / DeepSeek V4.1
   Flash for prose; OpenCode coding agents for implementation assistance
-- **Data:** a deterministic digital twin, seeded from published figures and
-  domain literature; no database required
+- **Data:** a deterministic digital twin seeded from published figures and
+  domain literature, plus SQLite (stdlib `sqlite3`) for the decision ledger,
+  work orders, chat history and the FTS5 retrieval index — one file, no server
+  process, no vector store
 
 ## Who built what
 

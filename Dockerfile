@@ -14,6 +14,9 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv==0.11.7
 COPY agent/pyproject.toml agent/uv.lock ./
 COPY agent/src ./src
+# The retrieval corpus is data, not code: without it rag.configure() finds
+# nothing and every citation on the deployed demo silently disappears.
+COPY agent/knowledge ./knowledge
 RUN uv sync --frozen --no-dev
 
 # The Next.js static export, served by FastAPI on the same origin as the
