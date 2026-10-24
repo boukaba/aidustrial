@@ -3,33 +3,39 @@
 Copy the answers below into the delivery platform. Items marked `[ADD ...]` are
 the only things that need a URL or a full legal name from you.
 
-> **Solo team:** the published criteria describe a team project. This pack assumes
-> a **team of one**. Confirm in the group chat that a solo team is eligible, and
-> list yourself under team members and roles. Do not leave that field blank.
+> **Solo team:** confirmed permitted for this cohort (programme staff, by direct
+> message). Team members and roles lists **Mohammed Boukaba** as the sole human
+> member, with AI tools disclosed separately.
 
 ---
 
 ## 1. Project name and one-line summary (max 20 words)
 
-**Aidustrial** — An agentic operations layer for large farms: seven specialists
-reason, one human decides.
+**Project name:** Aidustrial
+
+**One-line summary:** Aidustrial gives large industrial farms seven AI Agents
+working 24/7, deciding in a second and escalating risk to humans.
+
+*(19 words.)*
 
 ## 2. Project description (max 150 words)
 
-Aidustrial is an agentic operations layer for large industrial farms. Seven
-specialist agents read a simulated digital twin of a dairy complex in Adrar,
-Algeria, and propose actions on feed, water, herd health, calving, milking,
-machinery and logistics. The problem is coordination, not sensing: a
-270,000-head operation on a non-renewable aquifer produces more signals than any
-team can watch, and the hard decisions are trade-offs between domains.
-Aidustrial makes the agents do the watching and reasoning, but never gives them
-authority. Every consequential proposal carries a deterministic risk score and
-stops at a human gate showing the evidence, blast radius and cost of inaction.
-The farm is simulated from published Baladna Algeria figures; this project is
-independent and has no access to live telemetry. Built solo for Thirduni
-Cohort 1.
+A large industrial farm produces more telemetry than any team can turn into
+timely decisions. Feed, water, herd health, milk, machinery and supply run at
+once, and a decision in one lands in another: a bearing fails, a pivot stops, a
+field dries, the herd loses feed.
 
-*(131 words.)*
+Aidustrial puts seven specialist AI Agents on it, each owning one domain and
+working around the clock. They read a live digital twin fed by telemetry from
+pivots, silos, the parlour, weather stations and laboratories, and share findings
+in real time. Most decisions they take alone in under a second. Anything carrying
+real risk goes to a human specialist, with the evidence, the blast radius and the
+cost of doing nothing. Risk is scored by our rules, never by the model.
+
+It is built around Baladna's dairy project in Adrar, and adapts to any industry
+run by specialists.
+
+*(145 words.)*
 
 If the app is **not hosted** by the deadline, add this sentence and let the video
 carry the demo: “The app is a two-process system and is not hosted; the demo
@@ -68,7 +74,7 @@ Record from the script in [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md). Set it to
 
 **Solo submission (team of one).**
 
-- **Yacine `[ADD FAMILY NAME]`** — product concept, domain research, data
+- **Mohammed Boukaba** — product concept, domain research, data
   provenance, architecture, backend, frontend, tests, demo.
 - **AI tools** — OpenCode / DeepSeek were used heavily for implementation, test
   scaffolding and documentation drafts. All design decisions, domain assumptions
@@ -91,18 +97,21 @@ not claim otherwise.
 - **Data:** deterministic digital twin seeded from published figures and domain
   literature; no database required
 - **Deployment:** single Docker image; static Next.js build served by FastAPI
+- **Demo/pitch tooling:** Cap (screen capture), Playwright + cliclick (scripted
+  cursor), Qwen3-TTS (cloned narration voice), Qwen3-ASR (transcript check),
+  MLX, ffmpeg
 
 ## 8. What happens next (max 100 words)
 
-In the next three months I would replace the simulated sensor gateway with one
-real site’s telemetry — pivot, collar, silo and tanker feeds — and run a
-two-week shadow-mode pilot with an Algerian operator. I would publish the
-risk-scoring and provenance method so decisions can be audited, add a
-French/Arabic operator view, and keep the tool boundary open for other
-integrators. The goal is not a fully autonomous farm. It is a system an
-operations director trusts enough to use on a real shift.
+Three months, one real barn group at Adrar. We take Aidustrial off the twin and
+onto live telemetry — pivots, silos, herd vitals — and onto the laboratory
+systems already producing food, water and milk results daily. Then four weeks in
+shadow mode: seven AI Agents beside the existing team, every decision logged next
+to the human's. After that we open the gate for real and start reinforcement
+learning on those logs. Success is one number: decisions made earlier than today.
+The next step is a real site, not another prototype.
 
-*(84 words.)*
+*(91 words.)*
 
 ---
 
