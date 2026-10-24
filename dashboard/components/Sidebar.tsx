@@ -36,24 +36,22 @@ export function Sidebar({
     >
       {/* brand */}
       <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-4 py-3.5">
-        <span
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-sig-500/40 bg-sig-500/12 font-mono text-[10px] font-bold tracking-tight text-sig-400"
-          style={{ boxShadow: "0 0 18px -6px rgba(45,212,191,0.7)" }}
-        >
-          AD
-        </span>
+        {/* The product's own mark replaces the old initials block. Collapsed,
+            only the circular mark fits; expanded, the full lockup. */}
+        <img
+          src={open ? "/aidustrial-logo.png" : "/aidustrial-mark.png"}
+          alt="Aidustrial — Ai for Industry"
+          className={open ? "h-7 w-auto shrink-0" : "h-7 w-7 shrink-0"}
+        />
         {open && (
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[12.5px] font-semibold tracking-tight text-slate-100">
-              Adrar Farm
-            </div>
-            <div className="truncate text-[9.5px] text-slate-600">Adrar, Algeria</div>
+            <div className="truncate text-[9.5px] text-slate-600">Adrar · digital twin</div>
           </div>
         )}
         {open && (
           <span
             className="flex shrink-0 items-center gap-1 text-[9px] font-bold uppercase tracking-[0.12em] text-sig-400"
-            title={live ? "Receiving live data" : "Not connected"}
+            title={live ? "Receiving simulated telemetry" : "Not connected"}
           >
             <span className="relative flex h-1.5 w-1.5">
               <span
@@ -67,7 +65,7 @@ export function Sidebar({
                 }`}
               />
             </span>
-            {live ? "live" : "off"}
+            {live ? "sim" : "off"}
           </span>
         )}
       </div>

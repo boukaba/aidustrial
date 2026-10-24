@@ -39,6 +39,7 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -85,10 +86,30 @@ ZEN_SYSTEM = (
 )
 
 
+def _has_opencode_credentials() -> bool:
+    """True when the local OpenCode client has a usable credential.
+
+    The prose track talks to a local `opencode serve`, so a bare clone with no
+    OpenCode install must report the track as disabled rather than attempt three
+    doomed calls and paint "3 failed" across the demo header.
+    """
+    if os.getenv("OPENCODE_API_KEY", "").strip():
+        return True
+    raw = os.getenv("OPENCODE_AUTH_PATH", "").strip()
+    path = Path(raw) if raw else Path.home() / ".local" / "share" / "opencode" / "auth.json"
+    return path.is_file()
+
+
 def _enabled() -> bool:
     if os.getenv("AIDUSTRIAL_LLM", "").strip().lower() in {"off", "0", "false", "no"}:
         return False
-    return bool(os.getenv("AIDUSTRIAL_ZEN_BASE", ZEN_BASE).strip())
+    # An explicitly configured base URL may point at a remote/other server; in
+    # that case the caller has opted in and we do not require a local CLI.
+    if os.getenv("AIDUSTRIAL_ZEN_BASE", "").strip():
+        return True
+    if not ZEN_BASE.strip():
+        return False
+    return _has_opencode_credentials()
 
 
 class _Zen:
@@ -102,22 +123,35 @@ class _Zen:
 
     def __init__(self) -> None:
         self._proc: subprocess.Popen[bytes] | None = None
-        self._lock = threading.Lock()
+        #: Created lazily: this object is built at import time, before a loop
+        #: exists. It MUST be an asyncio lock -- a threading.Lock acquired on
+        #: the loop thread while another coroutine holds it across an await
+        #: deadlocks the entire server, health endpoint included.
+        self._lock: asyncio.Lock | None = None
+
+    def _alock(self) -> asyncio.Lock:
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def _ensure(self) -> None:
         if await self._healthy():
             return
-        with self._lock:
-            if self._proc is not None and self._proc.poll() is None:
+        async with self._alock():
+            if await self._healthy():
                 return
-            try:
-                self._proc = subprocess.Popen(
-                    ["opencode", "serve", "--port", str(ZEN_PORT)],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-            except FileNotFoundError:
-                raise RuntimeError("opencode CLI not found") from None
+            if self._proc is None or self._proc.poll() is not None:
+                try:
+                    # Spawning must never run on the event loop: Popen blocks,
+                    # and a blocked loop takes the whole API down with it.
+                    self._proc = await asyncio.to_thread(
+                        subprocess.Popen,
+                        ["opencode", "serve", "--port", str(ZEN_PORT)],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except FileNotFoundError:
+                    raise RuntimeError("opencode CLI not found") from None
         for _ in range(40):
             await asyncio.sleep(0.5)
             if await self._healthy():
