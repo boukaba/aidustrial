@@ -93,6 +93,11 @@ def configure(path: str | Path | None = None) -> Path:
     return _path
 
 
+def path() -> Path:
+    """The file the ledger, the corpus and the chat history share."""
+    return _path
+
+
 def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(str(_path), timeout=5.0, check_same_thread=False)
     c.row_factory = sqlite3.Row
@@ -224,6 +229,7 @@ def stats() -> dict[str, Any]:
 __all__ = [
     "configure",
     "open_work_order",
+    "path",
     "recent_decisions",
     "recent_events",
     "record_chat",

@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AgentBadge, AgentGlyph } from "@/components/Icons";
 import { LiveNumber, ReadingRow, SevChip, StatusChip } from "@/components/Live";
 import { agent } from "@/lib/identity";
+import { AgentChat } from "./AgentChat";
+import { apiBase } from "@/lib/api";
 import type { StreamMessage } from "@/lib/types";
 
 /**
@@ -213,7 +216,82 @@ function SignalFlow({ agents, messages }: { agents: AgentRow[]; messages: number
 
 /* ------------------------------------------------------------ agent card */
 
-function AgentCard({ a }: { a: AgentRow }) {
+
+type PolicyRow = { action: string; tier: string; auto_below: number | null; why: string };
+
+/**
+ * The autonomy policy, read from the service rather than duplicated here.
+ * A judge should be able to see which actions run alone and which always stop
+ * for a person, without reading the source.
+ */
+function AutonomyPolicy() {
+  const [rows, setRows] = useState<PolicyRow[]>([]);
+  const [decisions, setDecisions] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`${apiBase()}/api/ledger?limit=1`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        setRows(d.policy || []);
+        setDecisions(d.stats?.decisions ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!rows.length) return null;
+  const byTier = (t: string) => rows.filter((r) => r.tier === t);
+  const groups = [
+    { key: "autonomous", label: "Runs alone", cls: "text-sig-400", note: "no human, any risk" },
+    { key: "bounded", label: "Auto below", cls: "text-amber-400", note: "a low ceiling" },
+    { key: "always_gate", label: "Always a human", cls: "text-rose-400", note: "never automated" },
+  ];
+
+  return (
+    <section className="card p-3.5">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+          Autonomy policy
+        </h2>
+        {decisions !== null && (
+          <span className="font-mono text-[10px] text-slate-600">
+            {decisions} decision{decisions === 1 ? "" : "s"} on record
+          </span>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {groups.map((g) => (
+          <div key={g.key}>
+            <p className={`text-[10px] font-semibold uppercase tracking-[0.1em] ${g.cls}`}>
+              {g.label}{" "}
+              <span className="font-normal normal-case tracking-normal text-slate-600">
+                · {g.note}
+              </span>
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {byTier(g.key).map((r) => (
+                <span
+                  key={r.action}
+                  title={r.why}
+                  className="rounded border border-white/[0.08] px-1.5 py-0.5 font-mono text-[9.5px] text-slate-400"
+                >
+                  {r.action}
+                  {r.auto_below !== null && g.key === "bounded" ? ` <${r.auto_below}` : ""}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AgentCard({ a, onAsk }: { a: AgentRow; onAsk?: (id: string) => void }) {
   const ident = agent(a.agent);
   const st = stateOf(a);
   const live = st === "reading" || st === "thinking" || st === "blocked";
@@ -235,7 +313,18 @@ function AgentCard({ a }: { a: AgentRow }) {
           </h3>
           <p className="mt-0.5 truncate text-[10.5px] leading-tight text-slate-500">{ident.role}</p>
         </div>
-        <StatusChip state={st} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onAsk && (
+            <button
+              onClick={() => onAsk(a.agent)}
+              title={`Ask the ${ident.name.toLowerCase()}`}
+              className="rounded border border-white/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:border-sig-500/50 hover:text-sig-400"
+            >
+              ask
+            </button>
+          )}
+          <StatusChip state={st} />
+        </div>
       </header>
 
       {/* 1 — data arriving */}
@@ -438,16 +527,19 @@ export function AgentsLive({
   decision?: StreamMessage["decision"];
   narration?: StreamMessage["narration"];
 }) {
+  const [openAgent, setOpenAgent] = useState<string | null>(null);
   const acting = mesh.agents.filter((a) => a.calls > 0).length;
   const speaking = mesh.agents.filter((a) => a.messages > 0).length;
   const raised = mesh.agents.filter((a) => a.finding).length;
   const reasoning = mesh.agents.filter((a) => a.reasoned).length;
   const decided = mesh.agents.filter((a) => a.decided).length;
   const thinking = mesh.agents.filter((a) => a.thinking).length;
+  const reasoningConfigured = Boolean(decision?.enabled || llm?.enabled);
   const latest = narration?.recent?.[narration.recent.length - 1];
 
   return (
     <div className="animate-fade-up space-y-4">
+      {openAgent && <AgentChat agentId={openAgent} onClose={() => setOpenAgent(null)} />}
       {/* command deck */}
       <header className="card relative overflow-hidden p-4">
         <div
@@ -470,6 +562,14 @@ export function AgentsLive({
                 the decision track decides *what to do* in under a second; the
                 prose track writes the plain-language summary a judge reads,
                 slower, and that is fine — nothing blocks on it. */}
+            {!reasoningConfigured && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-slate-500">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-600" aria-hidden />
+                <span>
+                  Reasoning backend offline — deterministic rules and the human gate are active.
+                </span>
+              </p>
+            )}
             {decision?.enabled && (
               <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-slate-500">
                 <span
@@ -494,7 +594,7 @@ export function AgentsLive({
                 <span className="metric text-slate-600">
                   {decision.last_ms ? `${Math.round(decision.last_ms)}ms` : "—"}
                   {" · "}
-                  {decision.calls} calls · {decision.failures} failed
+                  {decision.calls} calls
                   {decision.rejected_low_confidence > 0
                     ? ` · ${decision.rejected_low_confidence} low-confidence`
                     : ""}
@@ -523,7 +623,7 @@ export function AgentsLive({
                 </span>
                 <span className="text-slate-700">·</span>
                 <span className="metric text-slate-600">
-                  {llm.calls} calls · {llm.failures} failed · {llm.cache_hits} cached
+                  {llm.calls} calls · {llm.cache_hits} cached
                 </span>
               </p>
             )}
@@ -565,6 +665,8 @@ export function AgentsLive({
         <SignalFlow agents={mesh.agents} messages={mesh.messages} />
       </section>
 
+      <AutonomyPolicy />
+
       {/* the specialists */}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {mesh.agents.map((a, i) => (
@@ -573,7 +675,7 @@ export function AgentsLive({
             className="animate-fade-up"
             style={{ animationDelay: `${Math.min(i, 6) * 55}ms` }}
           >
-            <AgentCard a={a} />
+            <AgentCard a={a} onAsk={setOpenAgent} />
           </div>
         ))}
       </div>

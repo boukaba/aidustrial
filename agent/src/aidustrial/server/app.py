@@ -27,7 +27,7 @@ from langgraph.types import Command
 from ..agents.narrator import NARRATOR
 from ..graph.orchestrator import ALL as ALL_MESH
 from ..graph.orchestrator import GRAPH
-from ..tools import ledger, sensors
+from ..tools import agentchat, ledger, rag, sensors
 from ..tools.jev import JEVS
 from ..tools.llm import BRAIN
 from ..twin import constants as C
@@ -62,6 +62,8 @@ async def _start_brain() -> None:
     # The audit trail must outlive the process, so it is opened before anything
     # can record into it.
     ledger.configure()
+    # Same file, same volume: the corpus shares the ledger's SQLite database.
+    rag.configure()
     loop = asyncio.get_running_loop()
     BRAIN.bind_loop(loop)
     JEVS.bind_loop(loop)
@@ -450,7 +452,29 @@ async def ledger_view(limit: int = 50, agent: str | None = None) -> dict:
         "decisions": ledger.recent_decisions(limit=limit, agent=agent),
         "events": ledger.recent_events(limit=limit, agent=agent),
         "policy": policy.describe(),
+        "corpus": rag.stats(),
     }
+
+
+@app.get("/api/agents/{agent}/knowledge")
+async def agent_knowledge(agent: str, q: str = "", k: int = 3) -> dict:
+    """What this agent would cite for a question, without answering it."""
+    return {
+        "agent": agent,
+        "query": q,
+        "passages": rag.retrieve(agent, q or agent, k=min(k, 6)),
+        "documents": rag.corpus(),
+    }
+
+
+@app.post("/api/agents/{agent}/chat")
+async def agent_chat(agent: str, body: dict) -> dict:
+    """Ask one specialist a question about its own domain and history."""
+    question = str(body.get("message", "")).strip()
+    if not question:
+        return {"error": "empty message"}
+    packet = sensors.GW.packet() if sensors.GW else {}
+    return await agentchat.answer(agent, question, packet)
 
 
 async def broadcast(session: Session) -> None:
