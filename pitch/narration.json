@@ -155,7 +155,7 @@
         "The machine engineer AI Agent watches pivots, pumps and nozzles.",
         {
           "text": "The milking, calving and supply AI Agents \u2014 all live.",
-          "say": "The milking, calving and supply AI Agents \u2014 all lyve."
+          "say": "The milking, calving and supply AI Agents \u2014 all running right now."
         }
       ]
     },
@@ -453,7 +453,7 @@
         "Over the next three months we move onto one real barn group at Adrar,",
         {
           "text": "wiring the tool boundary to live telemetry and the laboratory systems.",
-          "say": "wiring the tool boundary to lyve telemetry and the laboratory systems."
+          "say": "wiring the tool boundary to real-time telemetry and the laboratory systems."
         },
         "Then reinforcement learning: the logged decisions",
         "become a dispatch policy",
@@ -462,7 +462,7 @@
         "Success is one number: decisions made earlier than they are today.",
         {
           "text": "Thank you. The live demo and the code are on GitHub.",
-          "say": "Thank you. The lyve demo and the code are on GitHub."
+          "say": "Thank you. The demo and the code are on GitHub."
         }
       ]
     }
