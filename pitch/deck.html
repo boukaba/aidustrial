@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Aidustrial — pitch deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f6f7f9; --paper-2:#ffffff;
+    --ink:#0f2350; --ink-2:#38466b; --muted:#7b869c; --line:#e2e6ee;
+    --blue:#1a73ff; --blue-soft:#eaf2ff;
+    --amber:#c78a00; --amber-soft:#fff6e2;
+    --green:#128a5b; --green-soft:#e6f7ef;
+    --rose:#c0344e; --rose-soft:#fdeef1;
+    --display:'Space Grotesk',-apple-system,'Helvetica Neue',Arial,sans-serif;
+    --body:'Inter',-apple-system,'Helvetica Neue',Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#dfe3ea;font-family:var(--body);-webkit-font-smoothing:antialiased}
+  .slide{position:relative;width:1280px;height:720px;overflow:hidden;background:var(--paper);
+    color:var(--ink);padding:58px 68px 0 116px;display:flex;flex-direction:column;
+    page-break-after:always;break-after:page}
+  .slide:last-child{page-break-after:auto;break-after:auto}
+  .rail{position:absolute;left:0;top:0;bottom:0;width:78px;border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;padding:58px 0 40px;gap:16px}
+  .rail .n{font-family:var(--display);font-weight:700;font-size:15px}
+  .rail .t{font-family:var(--display);font-size:10px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--muted);writing-mode:vertical-rl;transform:rotate(180deg);margin-top:6px}
+  .rail .dot{width:7px;height:7px;border-radius:50%;background:var(--blue);margin-top:auto}
+  .eyebrow{font-family:var(--display);font-size:12px;font-weight:600;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--blue)}
+  h1{font-family:var(--display);font-size:44px;font-weight:600;line-height:1.1;letter-spacing:-.022em;margin-top:14px}
+  h2{font-family:var(--display);font-size:40px;font-weight:600;line-height:1.1;letter-spacing:-.022em;margin-top:14px}
+  .lead{font-size:17px;line-height:1.6;color:var(--ink-2);font-weight:300;margin-top:20px;max-width:880px}
+  .rule{height:1px;background:var(--line);margin:22px 0}
+  .band{display:flex;margin-top:34px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .band .cell{flex:1;padding:24px 22px 24px 0;border-right:1px solid var(--line)}
+  .band .cell:last-child{border-right:0}
+  .band .big{font-family:var(--display);font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1}
+  .band .cap{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.45}
+  .cards{display:flex;gap:16px;margin-top:30px}
+  .card{flex:1;background:var(--paper-2);border:1px solid var(--line);border-radius:12px;
+    padding:22px 22px 24px;border-top:3px solid var(--accent,var(--blue))}
+  .card .k{font-family:var(--display);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--accent,var(--blue));font-weight:600}
+  .card h3{font-family:var(--display);font-size:19px;font-weight:600;margin:11px 0 9px;letter-spacing:-.01em}
+  .card p{font-size:14px;line-height:1.58;color:var(--ink-2);font-weight:300}
+  .roster{margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:0 44px}
+  .who{display:flex;gap:14px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line)}
+  .who .code{font-family:var(--display);font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--blue);min-width:26px}
+  .who .nm{font-family:var(--display);font-size:16.5px;font-weight:600;letter-spacing:-.01em}
+  .who .ds{font-size:13.5px;color:var(--muted);font-weight:300;margin-left:auto;text-align:right}
+  .split{display:flex;gap:16px;margin-top:28px}
+  .pane{flex:1;border-radius:12px;padding:16px 20px;border:1px solid}
+  .pane .k{font-family:var(--display);font-size:11px;letter-spacing:.19em;text-transform:uppercase;font-weight:600}
+  .pane .t{font-size:18px;font-weight:600;margin-top:11px;font-family:var(--display);letter-spacing:-.01em}
+  .pane .d{font-size:14px;line-height:1.58;margin-top:9px;font-weight:300;color:var(--ink-2)}
+  .pane.yes{background:var(--green-soft);border-color:#bfe6d4}.pane.yes .k{color:var(--green)}
+  .pane.no{background:var(--amber-soft);border-color:#f0dcb0}.pane.no .k{color:var(--amber)}
+  .pane.blue{background:var(--blue-soft);border-color:#c7dcff}.pane.blue .k{color:var(--blue)}
+  .pane.rose{background:var(--rose-soft);border-color:#f4ccd4}.pane.rose .k{color:var(--rose)}
+  .pane.plain{background:var(--paper-2);border-color:var(--line)}.pane.plain .k{color:var(--blue)}
+  .steps{margin-top:26px;display:flex;flex-direction:column}
+  .step{display:flex;gap:20px;align-items:flex-start;padding:15px 0;border-bottom:1px solid var(--line)}
+  .step:first-child{border-top:1px solid var(--line)}
+  .step .i{font-family:var(--display);font-size:12px;font-weight:700;color:var(--blue);min-width:30px;padding-top:3px}
+  .step .t{font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:-.01em;min-width:300px}
+  .step .d{font-size:14px;color:var(--ink-2);line-height:1.55;font-weight:300;padding-top:2px}
+  .tagline{font-family:var(--display);font-size:19px;font-weight:500;color:var(--ink);letter-spacing:-.015em;line-height:1.4}
+  .cover{justify-content:center;padding-left:116px;background:var(--paper-2)}
+  .cover .glow{position:absolute;width:760px;height:760px;right:-260px;top:-280px;border-radius:50%;
+    background:radial-gradient(circle,rgba(26,115,255,.10),rgba(26,115,255,0) 68%)}
+  .cover .meta{display:flex;gap:56px;margin-top:46px}
+  .cover .meta .k{font-family:var(--display);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .cover .meta .v{font-size:16px;font-weight:500;margin-top:8px}
+  .links{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:34px}
+  .link{background:var(--paper-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+  .link .k{font-family:var(--display);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);font-weight:600}
+  .link .v{font-family:var(--display);font-size:18px;font-weight:600;margin-top:10px;letter-spacing:-.015em;line-height:1.2}
+  .link .u{font-size:12.5px;color:var(--muted);margin-top:7px;font-weight:300}
+  @page{margin:0}
+</style>
+</head>
+<body>
+
+<!-- 01 COVER -->
+<section class="slide cover">
+  <div class="glow"></div>
+  <div class="rail"><div class="n">01</div><div class="t">Aidustrial</div><div class="dot"></div></div>
+  <img src="file:///Users/YACINE/aidustrial/aidustrial_logo_alpha.png" alt="Aidustrial" style="width:400px;display:block" />
+  <h1 style="font-size:36px;margin-top:26px;color:var(--ink-2);font-weight:400">Multi-AI-Agent operations for industrial agro-complexes</h1>
+  <div class="rule" style="width:200px;margin:26px 0"></div>
+  <p class="lead" style="margin-top:0;max-width:740px">Seven specialist AI Agents run the operation around the clock against a live
+  digital twin, reason in the open, and stop at a human gate before anything consequential. Built entirely around the
+  Baladna project in Adrar — and adaptable to any industry that runs on specialists.</p>
+  <div class="meta">
+    <div><div class="k">Presented by</div><div class="v">Mohammed Boukaba</div></div>
+    <div><div class="k">Built around</div><div class="v">Baladna Algeria · Adrar</div></div>
+    <div><div class="k">Coverage</div><div class="v">7 AI Agents · 24/7 · 6 domains</div></div>
+  </div>
+</section>
+
+<!-- 02 THE SITE -->
+<section class="slide">
+  <div class="rail"><div class="n">02</div><div class="t">The site</div><div class="dot"></div></div>
+  <div class="eyebrow">The site</div>
+  <h2>Two hundred and seventy thousand cows,<br/>in the Algerian Sahara.</h2>
+  <div class="band">
+    <div class="cell"><div class="big">270,000</div><div class="cap">Holstein head at full build-out</div></div>
+    <div class="cell"><div class="big">117,000 ha</div><div class="cap">fodder footprint under irrigation</div></div>
+    <div class="cell"><div class="big">$3.5bn</div><div class="cap">integrated dairy and milk-powder project</div></div>
+    <div class="cell"><div class="big">Nov 2026</div><div class="cap">first 30,000 head arrive by air</div></div>
+  </div>
+  <p class="lead">The herd lands before its fodder programme has finished growing, and the water comes from the
+  <strong style="font-weight:600">Albien — a fossil aquifer that never refills</strong>. Six specialist domains run at
+  once, each producing its own telemetry, each with its own failure modes.</p>
+</section>
+
+<!-- 03 THE PROBLEM -->
+<section class="slide">
+  <div class="rail"><div class="n">03</div><div class="t">The problem</div><div class="dot"></div></div>
+  <div class="eyebrow">The problem</div>
+  <h2>An operation this size produces more telemetry<br/>than any team can turn into timely decisions.</h2>
+  <div class="cards">
+    <div class="card" style="--accent:var(--blue)">
+      <div class="k">Volume and variety</div>
+      <h3>Six domains, all speaking at once</h3>
+      <p>Feed, water, herd, milk, machinery, supply. Pivots, silos, the parlour, weather stations and laboratories — each is somebody's whole job.</p>
+    </div>
+    <div class="card" style="--accent:var(--rose)">
+      <div class="k">Coupling</div>
+      <h3>A decision in one lands in another</h3>
+      <p>A bearing fails, a pivot stops, a field dries, the herd loses feed. Every late decision compounds in water, in yield, and in animal welfare.</p>
+    </div>
+    <div class="card" style="--accent:var(--amber)">
+      <div class="k">Timing</div>
+      <h3>The clock starts before the herd lands</h3>
+      <p>30,000 Holsteins arrive by air from November 2026. The observing has to be running before the first animal is on the ground.</p>
+    </div>
+  </div>
+  <div class="rule"></div>
+  <p class="tagline">This is not a data problem. <span style="color:var(--blue)">It is a decision problem</span> — and it is the
+  same shape in any large industrial operation.</p>
+</section>
+
+<!-- 04 THE SYSTEM -->
+<section class="slide">
+  <div class="rail"><div class="n">04</div><div class="t">The system</div><div class="dot"></div></div>
+  <div class="eyebrow">The system</div>
+  <h2>Seven specialist AI Agents, working<br/>twenty-four hours a day.</h2>
+  <div class="roster">
+    <div class="who"><span class="code">FL</span><span class="nm">Field AI Agent</span><span class="ds">watches what grows</span></div>
+    <div class="who"><span class="code">LG</span><span class="nm">Supply AI Agent</span><span class="ds">feed, animals, everything in</span></div>
+    <div class="who"><span class="code">WS</span><span class="nm">Water AI Agent</span><span class="ds">quantity prediction and quality</span></div>
+    <div class="who"><span class="code">MK</span><span class="nm">Milking AI Agent</span><span class="ds">line throughput and quality</span></div>
+    <div class="who"><span class="code">VD</span><span class="nm">Cow doctor AI Agent</span><span class="ds">heat stress and disease</span></div>
+    <div class="who"><span class="code">CV</span><span class="nm">Calving AI Agent</span><span class="ds">the next generation</span></div>
+    <div class="who"><span class="code">MT</span><span class="nm">Machine engineer AI Agent</span><span class="ds">pivots, pumps, nozzles</span></div>
+    <div class="who"><span class="code">OR</span><span class="nm">Coordinator</span><span class="ds">routes findings between them, live</span></div>
+  </div>
+  <div class="split" style="margin-top:12px;gap:14px">
+    <div class="pane plain" style="flex:1">
+      <div class="k">The orchestrator</div>
+      <div class="d" style="margin-top:7px">No AI Agent calls another directly. The orchestrator wakes the specialists whose domains
+      changed, routes their questions through a shared blackboard, and <strong style="font-weight:600">will not let anything reach
+      the gate until the swarm has converged.</strong></div>
+    </div>
+    <div class="pane plain" style="flex:1">
+      <div class="k">Ask any AI Agent</div>
+      <div class="d" style="margin-top:7px">Click a specialist and put a question to it. It answers from what it is reading now,
+      the documents it works from, and its own history — <strong style="font-weight:600">then shows the sources it used.</strong></div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 HOW IT THINKS -->
+<section class="slide">
+  <div class="rail"><div class="n">05</div><div class="t">How it thinks</div><div class="dot"></div></div>
+  <div class="eyebrow">How it thinks</div>
+  <h2>Two models. One decides, one explains.<br/>Neither sets the risk.</h2>
+  <div class="split">
+    <div class="pane blue">
+      <div class="k">The Jev model — decides</div>
+      <div class="t">Typed judgement, with the odds attached</div>
+      <div class="d">Structured questions against a closed vocabulary of actions, answered as a validated verdict in
+      <strong style="font-weight:600">under one second</strong>. Every call carries the probability it was working from.</div>
+    </div>
+    <div class="pane rose">
+      <div class="k">The LLM model — explains</div>
+      <div class="t">The reasoning you can argue with</div>
+      <div class="d">Plain-language explanation a manager can read aloud and challenge, sourced from the same readings the
+      decision was made on. No black box to take on trust.</div>
+    </div>
+  </div>
+  <div class="split" style="margin-top:14px">
+    <div class="pane plain">
+      <div class="k">Telemetry from everywhere</div>
+      <div class="d" style="margin-top:8px">Pivot controllers, silo load cells, well yields, herd vitals, the parlour,
+      weather stations and fleet positions feed one digital twin — plus live results from the
+      <strong style="font-weight:600">food, water, milk and veterinary labs</strong>.</div>
+    </div>
+    <div class="pane plain">
+      <div class="k">Retrieval, with citations</div>
+      <div class="d" style="margin-top:8px">Each AI Agent answers from eight domain documents it can cite —
+      thresholds, protocols and reference ranges — so an explanation points at
+      <strong style="font-weight:600">PIVOT-MAINTENANCE §Vibration</strong>, not at the model's opinion.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 THE GATE -->
+<section class="slide">
+  <div class="rail"><div class="n">06</div><div class="t">The gate</div><div class="dot"></div></div>
+  <div class="eyebrow">The gate</div>
+  <h2>Autonomy where it is safe.<br/>A human specialist where it is not.</h2>
+  <div class="split">
+    <div class="pane yes">
+      <div class="k">If you approve</div>
+      <div class="d" style="font-weight:400;color:var(--ink)">Cooling starts in the barns most under heat stress. Those cows eat and milk normally again within hours.</div>
+    </div>
+    <div class="pane no">
+      <div class="k">If you do nothing</div>
+      <div class="d" style="font-weight:400;color:var(--ink)">Rumination suppression precedes a milk-yield loss that does not recover that lactation.</div>
+    </div>
+  </div>
+  <div class="steps">
+    <div class="step"><div class="i">01</div><div class="t">Runs alone</div>
+      <div class="d"><strong style="font-weight:600">Lighting and work orders</strong> at any risk: they change nothing physical. A technician is dispatched 24/7 without anyone answering a prompt.</div></div>
+    <div class="step"><div class="i">02</div><div class="t">Auto below a tight ceiling</div>
+      <div class="d"><strong style="font-weight:600">Ventilation and misting</strong> below 25 — reversible within minutes. Every other action defaults to 40.</div></div>
+    <div class="step"><div class="i">03</div><div class="t">Always a human</div>
+      <div class="d"><strong style="font-weight:600">Water transfers, pivot restarts, shedding load, culling.</strong> No score makes them safe. The risk number is ours, never the model's.</div></div>
+  </div>
+</section>
+
+<!-- 07 WHAT HAPPENS NEXT -->
+<section class="slide">
+  <div class="rail"><div class="n">07</div><div class="t">What happens next</div><div class="dot"></div></div>
+  <div class="eyebrow">What happens next</div>
+  <h2>Next three months: from a twin<br/>onto one real barn group.</h2>
+  <div class="steps">
+    <div class="step"><div class="i">01</div><div class="t">Wire the tool boundary to live telemetry</div>
+      <div class="d">Pivot controllers, silo load cells and the laboratory systems already producing food, water and milk results daily.</div></div>
+    <div class="step"><div class="i">02</div><div class="t">Run four weeks in shadow mode</div>
+      <div class="d">All seven AI Agents live beside the existing team, every decision logged next to the human's.</div></div>
+    <div class="step"><div class="i">03</div><div class="t">Start reinforcement learning</div>
+      <div class="d">Those logged decisions become a dispatch policy that improves on what the AI Agents choose today.</div></div>
+  </div>
+  <div class="rule"></div>
+  <p class="tagline">Success is one number: <span style="color:var(--blue)">decisions made earlier than they are today.</span></p>
+</section>
+
+<!-- 08 CLOSE -->
+<section class="slide">
+  <div class="rail"><div class="n">08</div><div class="t">Thank you</div><div class="dot"></div></div>
+  <img src="file:///Users/YACINE/aidustrial/aidustrial_logo_alpha.png" alt="Aidustrial" style="width:290px;display:block" />
+  <h2 style="margin-top:24px">The AI Agents do the watching<br/>and the reasoning.<br/><span style="color:var(--blue)">The human keeps the authority.</span></h2>
+  <div class="links">
+    <div class="link"><div class="k">Live demo</div><div class="v">See Aidustrial running</div><div class="u">Link to be published</div></div>
+    <div class="link"><div class="k">Code repository</div><div class="v">GitHub</div><div class="u">Repository link to be published</div></div>
+    <div class="link"><div class="k">Presented by</div><div class="v">Mohammed Boukaba</div><div class="u">Thank you for your time</div></div>
+  </div>
+</section>
+
+</body>
+</html>
