@@ -102,29 +102,51 @@ so the chat still works on a deployment without credentials.
 
 ## Run it locally
 
-Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+, pnpm.
+**Prerequisites:** Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+, pnpm.
+
+Nothing else is needed. No database server, no API keys, no cloud account. The
+deterministic rules and the human gate are the whole product; the model tracks
+are optional and covered under [Configure it](#configure-it).
+
+### Option A — development, two processes
+
+Use this while editing: the dashboard hot-reloads, the API restarts on save.
 
 ```bash
-# 1. Agent core, LangGraph + FastAPI on :8781
+# terminal 1: agent core (LangGraph + FastAPI) on :8781
 cd agent
 uv run uvicorn aidustrial.server.app:app --app-dir src --port 8781
 
-# 2. Dashboard, Next.js on :3010
+# terminal 2: dashboard on :3010
 cd dashboard
 pnpm install
 pnpm exec next dev -p 3010
 ```
 
-Open <http://localhost:3010>. The session opens at **Day 3, midday**: a pivot
-fault has just happened, and the heatwave starts tomorrow.
+Open <http://localhost:3010>.
 
-No API keys are required. The deterministic rules and the human gate are the
-product; the optional reasoning layer is described below.
+### Option B — one origin, production shape
 
-### One container
+This is what the deployed demo does: FastAPI serves the built dashboard and the
+WebSocket from the same origin, so there is no CORS and no second service.
+It is the closest thing to the real deployment without Docker.
 
-The app also builds as a single image, with the dashboard served by FastAPI on
-one origin. This is the recommended shape for a public demo:
+```bash
+# 1. build the dashboard into dashboard/out
+cd dashboard
+pnpm install
+pnpm build
+
+# 2. serve both from the API
+cd ../agent
+AIDUSTRIAL_STATIC_DIR=../dashboard/out \
+  uv run uvicorn aidustrial.server.app:app --app-dir src --port 8781
+```
+
+Open <http://localhost:8781>. Without `AIDUSTRIAL_STATIC_DIR`, `/` returns 404
+and only the API is available; that is the single most common setup mistake.
+
+### Option C — Docker
 
 ```bash
 docker build -t aidustrial .
@@ -132,41 +154,88 @@ docker run --rm -p 8080:8080 aidustrial
 # open http://localhost:8080
 ```
 
-Deployment steps for Render are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
+Render deployment steps are in [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-## Test it
+### What you should see
+
+The session opens at **Day 3, midday**: a pivot fault has just happened and the
+heatwave starts tomorrow. Within a few seconds a proposal pauses the farm at the
+top of the screen with **Approve** and **Reject**. Reject it and confirm the site
+does not move; that contract is the product.
+
+The simulation clock only advances while a browser is connected. Opening the URL
+is what starts it.
+
+## Configure it
+
+Everything is optional. With no configuration at all, the app runs on
+deterministic rules and every proposal reaches a human.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AIDUSTRIAL_DB` | `data/aidustrial.db` | SQLite file holding the decision ledger, work orders, chat history and the retrieval index. Delete it to reset. |
+| `AIDUSTRIAL_STATIC_DIR` | `agent/static` | Directory of a built dashboard to serve. Set to `../dashboard/out` for Option B. |
+| `PORT` | `8080` | Container port (Docker only). |
+
+**Decision track (Jev).** Typed decisions with probabilities.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `OPENCODE_API_KEY` | falls back to `~/.local/share/opencode/auth.json` | Credential for the OpenCode Zen endpoint. |
+| `OPENCODE_AUTH_PATH` | `~/.local/share/opencode/auth.json` | Where to look for that credential. |
+| `AIDUSTRIAL_JEV` | on when a credential exists | Set to `off` to disable the track. |
+| `AIDUSTRIAL_JEV_MODEL` | `jev-1.13-free` | Model id. |
+| `AIDUSTRIAL_JEV_BASE` | `https://opencode.ai/zen/v1/systemone` | Endpoint. |
+
+**Prose track.** Writes the plain-language explanation.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AIDUSTRIAL_LLM` | on when a local server is reachable | Set to `off` to disable the track. |
+| `AIDUSTRIAL_ZEN_BASE` | `http://127.0.0.1:4814` | A local `opencode serve`. Setting it explicitly counts as opting in. |
+| `AIDUSTRIAL_ZEN_MODEL` | `deepseek-v4.1-flash` | Model id. |
+| `AIDUSTRIAL_ZEN_PROVIDER` | `opencode-go` | Provider id inside OpenCode. |
+
+Both tracks are non-blocking: a slow or missing model never stalls the
+simulation, it only means a verdict arrives later or not at all. Both obey one
+invariant: **a model may escalate a problem, never de-escalate past a rule**, and
+no model ever sets the risk score. Without credentials the header says
+*"Reasoning backend offline, deterministic rules and the human gate are active"*
+rather than pretending.
+
+## Verify it works
 
 ```bash
-cd agent
-uv run pytest tests/ -q      # 104 tests, no network calls
+# the API is up
+curl -s localhost:8781/api/health | head -c 120
+
+# the audit trail and the autonomy policy, read back from SQLite
+curl -s localhost:8781/api/ledger | python3 -m json.tool | head -30
+
+# what a specialist would cite for a question
+curl -s "localhost:8781/api/agents/maintenance/knowledge?q=bearing%20vibration" | python3 -m json.tool
+
+# the test suite (104 tests, no network calls)
+cd agent && uv run pytest tests/ -q
 ```
 
 The suite guards the properties that make the demo defensible rather than
 decorative: the diurnal curve is a real 24-hour cycle; dry-arid heat is genuinely
 *less* lethal than humid heat; radiant load is what makes Adrar hard anyway;
 misting is constrained by hardware rather than water; agents do not re-propose
-satisfied actions; and **a rejected proposal does not mutate the world**.
+satisfied actions; a rejected proposal does not mutate the world; and the
+autonomy policy can never widen itself past the global gate.
 
-## Reasoning layer (optional)
+## Troubleshooting
 
-Two model tracks run on top of the deterministic rules, and neither blocks a
-tick:
-
-| Track | Job | Latency | Failure mode |
-|---|---|---|---|
-| **Jev** (OpenCode Zen SystemOne) | decide: warranted? which action? how urgent? | ~0.9s measured on the development machine | falls back to rules |
-| **Prose** (OpenCode Go, DeepSeek V4.1 Flash) | write the plain-language summary | slower, non-blocking | falls back to rules |
-
-Both obey one invariant: **a model may escalate, never de-escalate past a rule.**
-A model-originated action always faces a human because there is no sensor figure
-to feed the risk scorer. Risk stays deterministic.
-
-Without credentials, both tracks report as disabled and the dashboard says
-**“Reasoning backend offline, deterministic rules and the human gate are
-active.”** There are no hidden failures in the demo header.
-
-Configuration and the full safety argument are in
-[`AGENT.md`](AGENT.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+| Symptom | Cause |
+|---|---|
+| `/` returns 404, API works | `AIDUSTRIAL_STATIC_DIR` not set, or the dashboard was never built. Run Option B step 1. |
+| Dashboard loads but nothing happens | No WebSocket client. The clock only advances while a tab is open. |
+| `next start` fails with *"does not work with output: export"* | The dashboard is a static export. Serve `dashboard/out` (Option B) or use `next dev`. |
+| Header says the reasoning backend is offline | No credential for Jev, or no local `opencode serve` for prose. Expected without configuration; see [Configure it](#configure-it). |
+| Port already in use | Another run is still alive. `lsof -ti:8781 \\| xargs kill`. |
+| Decisions repeat after a restart | Intentional. The ledger persists; delete `agent/data/aidustrial.db` to start clean. |
 
 ## What is real, and what is simulated
 
