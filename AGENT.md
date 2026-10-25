@@ -19,12 +19,14 @@ consequential happens.
 
 The demo is built **around** Baladna Algeria S.P.A., the USD 3.5 bn integrated
 dairy and milk-powder project in Adrar Province, Algerian Sahara — using that
-project's published parameters as the source of every number in the twin.
+project's published parameters where they exist; every other value is
+explicitly labelled as an assumption.
 
-**There is no relationship with Baladna.** Not a partner, not engaged, no
-contact. The site was chosen for its constraints, and the architecture (the
-tool boundary in particular) exists so this could be integrated there in full
-if a partnership ever becomes real. Never imply otherwise in copy.
+**There is no relationship with Baladna — yet.** Not a partner, not engaged, no
+contact. Baladna is the target: the architecture (the tool boundary in
+particular) exists so this can be integrated there in full, and integrating
+with them is the intended next step. Say that we are building toward them.
+Never imply a relationship exists today.
 
 The demo exists to make one idea undeniable to judges and investors:
 
@@ -78,7 +80,7 @@ tools/sensors.py  The ONLY module that talks to the twin. Every agent call
 tools/jev.py    ★ The DECISION track. Zen's SystemOne/Jev: typed questions
                 (noul/choice/score) answered with values + probabilities in
                 ~0.9s. Non-blocking queue, escalation-only validation.
-tools/llm.py    ★ The PROSE track. Token Harbor flash model. Writes the
+tools/llm.py    ★ The PROSE track. OpenCode Go / DeepSeek flash model. Writes the
                 plain-language summary and rationale. 12-66s, non-blocking.
 tools/actions.py  Action/Finding dataclasses + score_risk/score_urgency.
                 Risk scoring is deterministic and NEVER touched by any model.
@@ -182,7 +184,7 @@ They divide the work on their strengths:
 |---|---|---|
 | File | `tools/jev.py` | `tools/llm.py` |
 | Endpoint | `opencode.ai/zen/v1/systemone` | `tokenharbor.ai/v1/chat/completions` |
-| Model | `jev-1.13-free` | `mimo-v2.6-flash:free` |
+| Model | `jev-1.13-free` | `deepseek-v4.1-flash` |
 | Asks | typed questions → values + probabilities | "write a JSON verdict" |
 | Latency | **~0.9s** | 12–66s |
 | Input tokens | ~400 | ~2–4k (prose track) / 8.4k (SDK) |
@@ -211,10 +213,12 @@ Risk itself is never model-set, by either track. `score_risk()` decides.
 
 ### Which backends, and the OpenCode Zen question
 
-**Prose track: Token Harbor.** `TOKENHARBOR_API_KEY` is already in the
-environment. Plain OpenAI-compatible at `https://tokenharbor.ai/v1/chat/completions`,
-and your `opencode.jsonc` lists several free models on it (`mimo-v2.6-flash:free`,
-`deepseek-v4-flash:free`, `claude-haiku-5.5:free`, …).
+**Prose track: OpenCode Go.** The prose model is reached through the local
+`opencode serve` client and the `opencode-go` provider
+(`deepseek-v4.1-flash` by default). It is not a bare Token Harbor HTTP call any
+more; that provider was retired when its free tier was rationed to zero. The
+local OpenCode client is the supported path, and an explicit
+`AIDUSTRIAL_ZEN_BASE` can point at another compatible server.
 
 **Decision track: OpenCode Zen's SystemOne (Jev) endpoint.**
 
@@ -306,14 +310,14 @@ entirely off the graph tick. It even writes its own honesty disclaimer.
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `TOKENHARBOR_API_KEY` | — | Prose track. Absent = no prose, rules only. |
+| `OPENCODE_API_KEY` | — | Both tracks. Falls back to the OpenCode auth store. |
+| `OPENCODE_AUTH_PATH` | `~/.local/share/opencode/auth.json` | Where the fallback key is read from. |
 | `AIDUSTRIAL_LLM` | on | `off` / `0` / `false` / `no` disables the prose track. |
-| `AIDUSTRIAL_LLM_MODEL` | `mimo-v2.6-flash:free` | Any Token Harbor free model. |
-| `AIDUSTRIAL_LLM_BASE` | `https://tokenharbor.ai/v1` | OpenAI-compatible base URL. |
-| `OPENCODE_API_KEY` | — | Decision track. Falls back to the auth store. |
+| `AIDUSTRIAL_ZEN_BASE` | `http://127.0.0.1:4814` | Local/remote OpenCode server; explicit value opts in. |
+| `AIDUSTRIAL_ZEN_PROVIDER` | `opencode-go` | OpenCode provider for the prose track. |
+| `AIDUSTRIAL_ZEN_MODEL` | `deepseek-v4.1-flash` | Prose model id. |
 | `AIDUSTRIAL_JEV` | on | `off` / `0` / `false` / `no` disables the decision track. |
 | `AIDUSTRIAL_JEV_MODEL` | `jev-1.13-free` | Zen SystemOne model id. |
-| `OPENCODE_AUTH_PATH` | `~/.local/share/opencode/auth.json` | Where the fallback key is read from. |
 
 ### What is exposed to the UI
 
@@ -325,7 +329,7 @@ entirely off the graph tick. It even writes its own honesty disclaimer.
 
 The Agents screen shows **two status lines** ("deciding via …" and "writing via …")
 and each card shows both attributions, which makes the latency contrast visible:
-`decided by jev-1.13-free · 849ms` above `words by mimo-v2.6-flash:free · 15485ms`.
+`decided by jev-1.13-free · 849ms` above `words by deepseek-v4.1-flash · 15485ms`.
 That contrast is the argument for two tracks, made on the screen.
 
 ### Three bugs found while verifying (don't repeat)
@@ -465,9 +469,9 @@ uv run --no-project --with "langgraph>=0.2" --with "langchain-core>=0.3" \
   python -m uvicorn aidustrial.server.app:app --app-dir src --port 8781
 ```
 
-For the agents to actually reason, `TOKENHARBOR_API_KEY` must be set in the
-environment (it already is on this machine). Without it the system still runs,
-just on rules only — check `GET /api/site/demo` → `llm.enabled`.
+For the agents to actually reason, OpenCode must be installed and authenticated
+(or `OPENCODE_API_KEY` set). Without it the system still runs, just on rules
+only — check `GET /api/site/demo` → `llm.enabled` and `decision.enabled`.
 
 Frontend on `:3010` (production start; `pnpm install` first if needed):
 
@@ -587,14 +591,16 @@ tour, plain-language layer throughout, screenshot-friendly.
 
 Known loose ends, in rough priority order:
 
-1. **`components/Areas.tsx` is dead code** (310 lines, zero imports). The old
-   crop/livestock/milk views were superseded by `AreaDetail.tsx`. Delete it.
+1. ~~`components/Areas.tsx` is dead code (310 lines, zero imports).~~ Removed
+   in the submission cleanup; `AreaDetail.tsx` is the only detail view.
 2. **The detail views (Cow food / The herd / The milk / Water & machines) are
    still list-shaped.** They inherit the identity hairline but don't have the
    live flashing treatment the Agents view has. Giving each a per-field live
    panel with `LiveNumber` + `StatusChip` is the obvious next step.
-3. **The README is stale** — it still says "four specialist agents" and "23
-   tests". Actual: seven agents, 88 tests. Rewrite it to match this file.
+3. **Keep the README aligned.** It now states seven agents, 88 tests, the
+   simulated-twin disclaimer, the solo/AI-tools disclosure and the one-container
+   deployment. If the reasoning stack changes again, update the README and the
+   config table together.
 4. **Only the agents triage wakes get a reasoning call.** That is correct (an
    agent with nothing to look at should not burn the free tier) but it means a
    quiet scenario shows 2–3 agents reasoning, not 7. If you want more visible

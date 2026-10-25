@@ -323,7 +323,8 @@ export default function Command() {
             $3.5bn dairy farm under construction, whose first 30,000 animals are mostly heifers
             that will not give milk for about 18 months. That is why automated monitoring is
             worth putting in now, before the animals arrive. We have no relationship with that
-            project; every reading here is simulated from its published parameters.{" "}
+            project — Baladna is the target, and integrating with them is the goal. Every
+            reading here is simulated from its published parameters.{" "}
             <button
               onClick={() => setPanel(true)}
               className="text-slate-500 underline decoration-dotted underline-offset-2"

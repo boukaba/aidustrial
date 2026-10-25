@@ -90,6 +90,28 @@ welfare — is never auto-executed regardless of score.
 
 ---
 
+### `ledger.py` and `rag.py` — memory and retrieval
+
+Both share a single SQLite file (`agent/data/aidustrial.db`, configurable with
+`AIDUSTRIAL_DB`). No server process, no ORM, no vector database, no embedding
+service — the whole persistence layer is one file created by the Python
+standard library.
+
+`ledger.py` is the audit trail. Every decision is stored with its agent, action,
+risk score, verdict and the reason it was gated, alongside events, work orders
+and agent chat history. The verdict is written *before* the graph resumes, so a
+crash mid-resume cannot lose the record it was created to keep, and the log now
+survives the process — the earlier in-memory list did not.
+
+`rag.py` is retrieval (RAG). Eight markdown documents in `agent/knowledge/`
+cover the seven specialist domains plus governance. They are chunked by heading
+and indexed with SQLite FTS5; queries are BM25-ranked and scoped per agent, so a
+specialist can only cite its own domain. Lexical retrieval was chosen over
+embeddings deliberately: the corpus is dense with exact tokens (`PIVOT-3`,
+`mm/s`, `SCC`) that BM25 matches better than a small embedder, there is no model
+to download at build or boot, and a retrieval layer that cannot fail a container
+start is worth more here than one that scores marginally higher.
+
 ## Layer 2 — Specialists (`agents/specialists.py`)
 
 Four agents. Each has a narrow mandate, an explicit escalation rule, bounded

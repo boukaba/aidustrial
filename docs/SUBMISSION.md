@@ -13,8 +13,9 @@ the only things that need a URL or a full legal name from you.
 
 **Project name:** Aidustrial
 
-**One-line summary:** Aidustrial gives large industrial farms seven AI Agents
-working 24/7, deciding in a second and escalating risk to humans.
+**One-line summary:** An agentic operations layer for large industrial farms:
+seven specialist AI Agents working 24/7, escalating consequential decisions to
+humans.
 
 *(19 words.)*
 
@@ -76,9 +77,9 @@ Record from the script in [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md). Set it to
 
 - **Mohammed Boukaba** — product concept, domain research, data
   provenance, architecture, backend, frontend, tests, demo.
-- **AI tools** — OpenCode / DeepSeek were used heavily for implementation, test
-  scaffolding and documentation drafts. All design decisions, domain assumptions
-  and verification are mine. The criteria explicitly expect AI tools to be
+- **AI tools** — a coding assistant was used for code implementation and test
+  scaffolding. All design decisions, domain assumptions and verification are
+  mine. The criteria explicitly expect AI tools to be
   disclosed; hiding them costs points.
 - **No other team members.**
 
@@ -92,14 +93,14 @@ not claim otherwise.
 - **Backend:** Python 3.11+, LangGraph, FastAPI, WebSocket, Pydantic, pytest,
   ruff, uv
 - **Frontend:** Next.js 15, React 19, TypeScript, Tailwind CSS, pnpm
-- **AI:** OpenCode Zen / Jev (typed decisions), OpenCode Go / DeepSeek V4.1 Flash
-  (prose), OpenCode coding agents (implementation assistance)
+- **AI:** Jev 1.13 via OpenCode Zen (typed decisions), DeepSeek V4.1 Flash via
+  OpenCode Go (prose), a coding assistant for implementation
 - **Data:** deterministic digital twin seeded from published figures and domain
-  literature; no database required
+  literature, plus SQLite (stdlib `sqlite3`) for the decision ledger, work
+  orders, chat history and an FTS5 full-text index
+- **Retrieval (RAG):** SQLite FTS5 / BM25 over an eight-document domain corpus;
+  no vector database, no embedding service, no model download
 - **Deployment:** single Docker image; static Next.js build served by FastAPI
-- **Demo/pitch tooling:** Cap (screen capture), Playwright + cliclick (scripted
-  cursor), Qwen3-TTS (cloned narration voice), Qwen3-ASR (transcript check),
-  MLX, ffmpeg
 
 ## 8. What happens next (max 100 words)
 

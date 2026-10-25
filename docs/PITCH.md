@@ -2,26 +2,28 @@
 
 ### The agentic operations layer for industrial agro-complexes
 
-A working prototype, dimensioned around the **Baladna Algeria** mega-dairy in
+Aidustrial is built around a **simulated** dairy complex dimensioned from the
+**Baladna Algeria** mega-dairy in
 Adrar, Algerian Sahara — USD 3.5 billion, 270,000 head of Holstein across
 117,000 hectares, targeting roughly half of Algeria's national powdered-milk
 demand. Every parameter is either taken from published figures or explicitly
 labelled as an assumption; the full register is in
 [`DATA_PROVENANCE.md`](DATA_PROVENANCE.md). This is an independent case study:
-I have no relationship with Baladna and no access to their telemetry. The site
-was chosen because its constraints are the clearest demonstration of the problem
-this solves.
+I have no relationship with Baladna and no access to their telemetry. Baladna is
+the target: the aim is to integrate Aidustrial with them, and the tool boundary
+is built for exactly that. The site was chosen because its constraints are the
+clearest demonstration of the problem this solves.
 
 ---
 
 ## Project description
 
-**Aidustrial is a working prototype of an agentic operations layer for a large
-industrial operation — and it makes every agent stop and ask a person before
-anything consequential happens.**
+**Aidustrial is an agentic operations layer for a large industrial operation —
+and it makes every AI Agent stop and ask a person before anything consequential
+happens.**
 
 It is not a dashboard, and it is not a chatbot bolted onto telemetry. It is
-seven specialist agents, each owning one domain of the operation — feed, water,
+seven specialist AI Agents, each owning one domain of the operation — feed, water,
 herd health, calving, milking, machinery, supply — reading a **simulated**
 digital twin of the site. They read continuously, and when the reasoning backend
 is configured they explain what they see in plain language. Every consequential
