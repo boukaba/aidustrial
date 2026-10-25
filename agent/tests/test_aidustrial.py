@@ -10,6 +10,8 @@ These exist to protect the properties that make the demo defensible:
 
 from __future__ import annotations
 
+import copy
+
 import pytest
 
 from aidustrial.agents.specialists import (
@@ -253,10 +255,30 @@ def test_rejecting_records_the_decision_and_changes_nothing():
     sensors.bind(w)
     cfg = {"configurable": {"thread_id": "t3"}}
     out = app.invoke({"max_turns": 3, "turn": 0}, cfg)
-    while out.get("__interrupt__"):
+
+    # Capture the exact world the director was shown. Rejection must leave it
+    # byte-for-byte unchanged: no pivot restarted, no misters enabled, no silo
+    # inlet reset. This is the core promise of the human gate.
+    before = copy.deepcopy(w.observe())
+    first = out["__interrupt__"][0].value["action"]
+    guard = 0
+    while out.get("__interrupt__") and guard < 8:
         out = app.invoke(Command(resume={"approved": False, "note": "held"}), cfg)
+        guard += 1
+
     assert out["rejected"], "rejections must be recorded for audit"
     assert not out["executed"]
+    assert w.observe() == before, (
+        f"rejecting {first['action']} ({first['target']}) mutated the world"
+    )
+    # A rejection still enters the re-proposal cooldown. Otherwise the same
+    # action returns next tick and trains the director to approve reflexively.
+    assert w.acted_recently(first["action"], first["target"])
+    # The old 24-tick window was under two seconds at demo speed, so the same
+    # proposal came straight back. Rejections must survive well past that.
+    for _ in range(30):
+        w.step()
+    assert w.acted_recently(first["action"], first["target"])
 
 
 def test_approving_applies_the_action():
@@ -270,12 +292,14 @@ def test_approving_applies_the_action():
     sensors.bind(w)
     cfg = {"configurable": {"thread_id": "t4"}}
     out = app.invoke({"max_turns": 3, "turn": 0}, cfg)
+    before = copy.deepcopy(w.observe())
     guard = 0
     while out.get("__interrupt__") and guard < 8:
         out = app.invoke(Command(resume={"approved": True, "note": "go"}), cfg)
         guard += 1
     assert out["executed"], "approval must produce an execution record"
     assert out["executed"][0]["approved_by"] == "farm_director"
+    assert w.observe() != before, "approval must actually change the world"
 
 # --- three production areas -------------------------------------------------
 
