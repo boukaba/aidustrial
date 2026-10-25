@@ -38,3 +38,4 @@ pitch/scrape.mjs
 pitch/shot.mjs
 pitch/*.log
 pitch/*.err
+pitch/captions/
