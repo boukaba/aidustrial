@@ -9,15 +9,15 @@ import { apiBase } from "@/lib/api";
 import type { StreamMessage } from "@/lib/types";
 
 /**
- * The mesh, made visible — mission-control version.
+ * The mesh, made visible, mission-control version.
  *
  * Three things a visitor must SEE rather than be told:
  *   1. seven distinct workers, each with its own colour, badge and live data
- *   2. data ARRIVING — numbers that flash the instant they change
+ *   2. data ARRIVING, numbers that flash the instant they change
  *   3. information travelling from each agent INTO the coordinator
  *
  * The signal-flow diagram at the top is the piece that answers "is the
- * orchestrator actually receiving its agents' information?" — it is drawn from
+ * orchestrator actually receiving its agents' information?", it is drawn from
  * the same payload as everything else, so a lit line means a real message.
  */
 
@@ -54,7 +54,7 @@ const stateOf = (a: AgentRow): "reading" | "thinking" | "decided" | "blocked" | 
 /**
  * The signal bus. Each agent sits on the top row; a line drops from it into a
  * shared bus and on into the coordinator. A line lights up and animates only
- * when that agent has actually spoken this round — so the diagram is a truthful
+ * when that agent has actually spoken this round, so the diagram is a truthful
  * picture of the mesh, not decoration.
  */
 function SignalFlow({ agents, messages }: { agents: AgentRow[]; messages: number }) {
@@ -327,7 +327,7 @@ function AgentCard({ a, onAsk }: { a: AgentRow; onAsk?: (id: string) => void }) 
         </div>
       </header>
 
-      {/* 1 — data arriving */}
+      {/* 1, data arriving */}
       <section
         className="rounded-lg p-2"
         style={{ background: `linear-gradient(160deg, ${ident.hex}0d, transparent 70%)`, border: `1px solid ${ident.hex}18` }}
@@ -349,7 +349,7 @@ function AgentCard({ a, onAsk }: { a: AgentRow; onAsk?: (id: string) => void }) 
         ))}
       </section>
 
-      {/* 2 — the tool it is calling, only when it is actually calling */}
+      {/* 2, the tool it is calling, only when it is actually calling */}
       {a.calls > 0 && (
         <p className="mt-2.5 flex items-center gap-1.5 truncate text-[10px] text-slate-500">
           <span className="text-slate-600">querying</span>
@@ -364,7 +364,7 @@ function AgentCard({ a, onAsk }: { a: AgentRow; onAsk?: (id: string) => void }) 
         </p>
       )}
 
-      {/* 3 — what it decided */}
+      {/* 3, what it decided */}
       <section className="mt-2.5 border-t border-white/[0.06] pt-2.5">
         {a.finding ? (
           <>
@@ -431,7 +431,7 @@ function AgentCard({ a, onAsk }: { a: AgentRow; onAsk?: (id: string) => void }) 
           </>
         ) : (
           <p className="text-[11px] text-slate-600">
-            {a.calls > 0 ? "checking — nothing needs saying yet" : "watching, nothing to raise"}
+            {a.calls > 0 ? "checking, nothing needs saying yet" : "watching, nothing to raise"}
           </p>
         )}
       </section>
@@ -556,17 +556,17 @@ export function AgentsLive({
             </h1>
             <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-slate-400">
               Each card is one specialist reading the farm right now. The numbers flash when
-              they change — nothing here is a stored report.
+              they change, nothing here is a stored report.
             </p>
             {/* Two reasoning tracks, shown plainly. They divide the work:
                 the decision track decides *what to do* in under a second; the
                 prose track writes the plain-language summary a judge reads,
-                slower, and that is fine — nothing blocks on it. */}
+                slower, and that is fine, nothing blocks on it. */}
             {!reasoningConfigured && (
               <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-slate-500">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-slate-600" aria-hidden />
                 <span>
-                  Reasoning backend offline — deterministic rules and the human gate are active.
+                  Reasoning backend offline, deterministic rules and the human gate are active.
                 </span>
               </p>
             )}
@@ -592,7 +592,7 @@ export function AgentsLive({
                 </span>
                 <span className="text-slate-700">·</span>
                 <span className="metric text-slate-600">
-                  {decision.last_ms ? `${Math.round(decision.last_ms)}ms` : "—"}
+                  {decision.last_ms ? `${Math.round(decision.last_ms)}ms` : ", "}
                   {" · "}
                   {decision.calls} calls
                   {decision.rejected_low_confidence > 0
@@ -660,7 +660,7 @@ export function AgentsLive({
         </div>
       </header>
 
-      {/* signal flow — the answer to "is the orchestrator receiving this?" */}
+      {/* signal flow, the answer to "is the orchestrator receiving this?" */}
       <section className="card p-4">
         <SignalFlow agents={mesh.agents} messages={mesh.messages} />
       </section>

@@ -38,7 +38,10 @@
           "say": "This is idustrial."
         },
         "And this is the problem it was built for.",
-        "Baladna's dairy complex in Adrar \u2014 the largest in the world.",
+        {
+          "text": "Baladna's dairy complex in Adrar, the largest in the world.",
+          "say": "Baladna's dairy complex in Adrar \u2014 the largest in the world."
+        },
         "Two hundred and seventy thousand cows,",
         "across one hundred and seventeen thousand hectares.",
         "Six specialist domains, all running at once, all producing telemetry.",
@@ -74,7 +77,10 @@
       "phrases": [
         "And the domains are coupled.",
         "A bearing fails, a pivot stops, a field dries, the herd loses feed.",
-        "Every late decision compounds \u2014 in water, in yield, in animal welfare.",
+        {
+          "text": "Every late decision compounds, in water, in yield, in animal welfare.",
+          "say": "Every late decision compounds \u2014 in water, in yield, in animal welfare."
+        },
         "That is not a data problem. It is a decision problem."
       ]
     },
@@ -146,15 +152,21 @@
           "say": "So idustrial runs this operation with seven specialist AI Agents."
         },
         "Each AI Agent owns one domain, and never stops watching it.",
-        "They read a digital twin of the whole site \u2014",
-        "fed by telemetry from everywhere \u2014",
+        {
+          "text": "They read a digital twin of the whole site, ",
+          "say": "They read a digital twin of the whole site \u2014"
+        },
+        {
+          "text": "fed by telemetry from everywhere, ",
+          "say": "fed by telemetry from everywhere \u2014"
+        },
         "pivots, silos, the parlour, weather, the labs.",
         "The field AI Agent watches what grows.",
         "The water AI Agent predicts quantity and tests quality.",
         "The cow doctor AI Agent watches heat stress and disease.",
         "The machine engineer AI Agent watches pivots, pumps and nozzles.",
         {
-          "text": "The milking, calving and supply AI Agents \u2014 all live.",
+          "text": "The milking, calving and supply AI Agents, all live.",
           "say": "The milking, calving and supply AI Agents \u2014 all running right now."
         }
       ]
@@ -227,7 +239,10 @@
       ],
       "phrases": [
         "Two models do the reasoning.",
-        "The Jev model decides \u2014 typed questions, and a closed set of actions.",
+        {
+          "text": "The Jev model decides, typed questions, and a closed set of actions.",
+          "say": "The Jev model decides \u2014 typed questions, and a closed set of actions."
+        },
         "It hands you the odds it was working from, in under a second.",
         "The LLM model writes the explanation, so you can argue with it.",
         "Neither of them sets the risk score. That is ours, computed by rule."
@@ -281,7 +296,10 @@
       ],
       "phrases": [
         "Most decisions never reach a person.",
-        "But anything carrying real risk goes to a human specialist \u2014",
+        {
+          "text": "But anything carrying real risk goes to a human specialist, ",
+          "say": "But anything carrying real risk goes to a human specialist \u2014"
+        },
         "with the evidence, the blast radius, and the cost of doing nothing.",
         "A model may raise a problem. It can never lower one past a rule."
       ]
@@ -463,7 +481,10 @@
         "Three months: one real barn group at Adrar,",
         "live telemetry and the lab feeds,",
         "four weeks in shadow mode.",
-        "Behind it, the industrial hardening \u2014",
+        {
+          "text": "Behind it, the industrial hardening, ",
+          "say": "Behind it, the industrial hardening \u2014"
+        },
         "PostgreSQL, multi-tenant access,",
         "structured audit logging, and Neo4j for the knowledge graph.",
         "Then reinforcement learning on real logs.",

@@ -4,10 +4,10 @@ Layer by layer, with the reasoning behind each boundary.
 
 ---
 
-## Layer 0 — Digital twin (`twin/`)
+## Layer 0, Digital twin (`twin/`)
 
 A simulation of the Adrar site, seeded with researched parameters. It exists
-because the real thing has no telemetry yet — see
+because the real thing has no telemetry yet, see
 [`DATA_PROVENANCE.md`](DATA_PROVENANCE.md) for the honest framing.
 
 | Module | Responsibility |
@@ -37,7 +37,7 @@ peaking at 15:00.
 
 **The aquifer is judged on projected annual draw**, not on stock. A seven-day
 demo cannot deplete a fossil aquifer, but it can immediately show whether the
-current allocation, held for a year, would breach the 2.5–4 bn m³ envelope. That
+current allocation, held for a year, would breach the 2.5-4 bn m³ envelope. That
 is the number the orchestrator needs in order to arbitrate.
 
 **Milk tankers cycle.** load → transit → unload → dwell → load. The first version
@@ -45,14 +45,14 @@ discharged on every tick regardless of state and emptied the entire fleet on day
 
 ### Determinism
 
-Every run is reproducible from a seed, so an audit question — "why did the vet
-escalate on tick 216?" — has an exact replay.
+Every run is reproducible from a seed, so an audit question, "why did the vet
+escalate on tick 216?", has an exact replay.
 
 ---
 
-## Layer 1 — Sensory cortex (`tools/`)
+## Layer 1, Sensory cortex (`tools/`)
 
-### `sensors.py` — the boundary
+### `sensors.py`, the boundary
 
 Agents never touch twin internals. They call a tool and get a dict. This is the
 only module that would be rewritten to go live: reimplement it against Valmont
@@ -63,20 +63,20 @@ The gateway holds the live `World` as a module-level binding rather than
 threading it through graph state, because LangGraph checkpoints every channel
 through msgpack and the simulation cannot be serialised.
 
-### `actions.py` — the risk model
+### `actions.py`, the risk model
 
 Risk scoring is an explicit deterministic function of its inputs. No model, no
 randomness, no hidden weights. If the score shown to a human cannot be
 reconstructed, the human-in-the-loop step is theatre.
 
-**Risk** — how dangerous is this action?
+**Risk**, how dangerous is this action?
 - base severity (5 → 85)
 - headcount affected
 - water moved, especially from a non-renewable source
 - resource class (routine / scarce hardware / shared budget / non-renewable aquifer)
 - reversibility
 
-**Urgency** — how soon must it happen?
+**Urgency**, how soon must it happen?
 - animal welfare involved
 - hours until irreversible harm
 - does the window close, does the damage compound daily
@@ -85,23 +85,23 @@ These are **independent axes** and the gate queue sorts by urgency first. An ear
 build sorted by risk alone and buried a live heat emergency for 33,250 head
 behind irrigation for standing crop.
 
-`ALWAYS_GATE_ACTIONS` — anything touching the contested aquifer or animal
-welfare — is never auto-executed regardless of score.
+`ALWAYS_GATE_ACTIONS`, anything touching the contested aquifer or animal
+welfare, is never auto-executed regardless of score.
 
 ---
 
-### `ledger.py` and `rag.py` — memory and retrieval
+### `ledger.py` and `rag.py`, memory and retrieval
 
 Both share a single SQLite file (`agent/data/aidustrial.db`, configurable with
 `AIDUSTRIAL_DB`). No server process, no ORM, no vector database, no embedding
-service — the whole persistence layer is one file created by the Python
+service, the whole persistence layer is one file created by the Python
 standard library.
 
 `ledger.py` is the audit trail. Every decision is stored with its agent, action,
 risk score, verdict and the reason it was gated, alongside events, work orders
 and agent chat history. The verdict is written *before* the graph resumes, so a
 crash mid-resume cannot lose the record it was created to keep, and the log now
-survives the process — the earlier in-memory list did not.
+survives the process, the earlier in-memory list did not.
 
 `rag.py` is retrieval (RAG). Eight markdown documents in `agent/knowledge/`
 cover the seven specialist domains plus governance. They are chunked by heading
@@ -112,34 +112,34 @@ embeddings deliberately: the corpus is dense with exact tokens (`PIVOT-3`,
 to download at build or boot, and a retrieval layer that cannot fail a container
 start is worth more here than one that scores marginally higher.
 
-## Layer 2 — Specialists (`agents/specialists.py`)
+## Layer 2, Specialists (`agents/specialists.py`)
 
 Four agents. Each has a narrow mandate, an explicit escalation rule, bounded
-memory (capped at 8 entries — an agent with unbounded memory eventually narrates
+memory (capped at 8 entries, an agent with unbounded memory eventually narrates
 its own history back to itself instead of reading the site), and returns findings
 and proposals. None of them mutate the world.
 
-**Agronomist** — soil moisture and the pivot fleet. Judges irrigation proposals
+**Agronomist**, soil moisture and the pivot fleet. Judges irrigation proposals
 against projected *annual* draw, not today's moisture reading. A single wet year
 you cannot get back.
 
-**Veterinarian** — herd health and heat. Knows that rumination collapses before
+**Veterinarian**, herd health and heat. Knows that rumination collapses before
 core temperature does, so it acts on rumination rather than waiting for THI. When
 only some barns have cooling hardware, it ranks barns by projected animal harm
 and reports the uncovered ones explicitly rather than silently cooling what it
 can.
 
-**Maintenance** — machinery. Vibration precedes bearing temperature; both precede
+**Maintenance**, machinery. Vibration precedes bearing temperature; both precede
 failure. Ignores bulk-feed silos, which are tipper-fed and have no conveyor to
 stall.
 
-**Logistics** — feed and cold chain. Owns the structural problem that the herd
+**Logistics**, feed and cold chain. Owns the structural problem that the herd
 arrives by air in November 2026 while the fodder to feed it needs a full growing
 season.
 
 ---
 
-## Layer 3 — Orchestrator (`graph/orchestrator.py`)
+## Layer 3, Orchestrator (`graph/orchestrator.py`)
 
 The orchestrator does no work. It routes, it gates, and it logs.
 
@@ -156,7 +156,7 @@ START → sense → triage → wake → consult → gate ─┬─→ execute �
 environmental context in the trace.
 
 **`triage`** decides who wakes, before any agent burns tokens. Severity thresholds
-plus compound conditions — the veterinarian wakes on heat band *or* rumination
+plus compound conditions, the veterinarian wakes on heat band *or* rumination
 deficit, the agronomist on wilting fields *or* aquifer pressure.
 
 **`wake`** runs each focused specialist.
@@ -166,10 +166,10 @@ itself; the agronomist has to say whether water can be reallocated. This is what
 makes the swarm a swarm rather than four dashboards.
 
 **`gate`** does three things, in order:
-1. **Deduplicate** on `(action, target)` — cross-consult legitimately re-runs a
+1. **Deduplicate** on `(action, target)`, cross-consult legitimately re-runs a
    peer and would otherwise double-propose. Three agents independently noticing a
    hot bearing is a *finding* worth keeping; three identical *actions* are not.
-2. **Filter satisfied actions** — never propose starting a pivot that is already
+2. **Filter satisfied actions**, never propose starting a pivot that is already
    running, enabling misting that is already on, or restarting an inlet already
    restarted. This is the classic agent failure and it fills the human gate with
    noise.
@@ -180,8 +180,8 @@ makes the swarm a swarm rather than four dashboards.
 Then it splits survivors into auto-executable (below the risk ceiling) and
 human-gated (at or above, or on the always-gate list), ordered by urgency.
 
-**`human_gate`** calls LangGraph's `interrupt()`. The graph genuinely suspends —
-no polling loop, no fake waiting state — and resumes from any process given the
+**`human_gate`** calls LangGraph's `interrupt()`. The graph genuinely suspends, 
+no polling loop, no fake waiting state, and resumes from any process given the
 thread id and a `Command(resume=...)`. Requires a checkpointer; `MemorySaver` in
 development, `SqliteSaver` to survive restarts.
 
@@ -190,13 +190,13 @@ gate queue.
 
 ---
 
-## Layer 3.5 — Transport (`server/app.py`)
+## Layer 3.5, Transport (`server/app.py`)
 
 One session per thread, holding the twin and the graph thread id.
 
-- `WS /ws/stream` — continuous telemetry and agent trace
-- `POST /api/decide/{thread}` — the Farm Director's verdict, resumes the thread
-- `GET /api/health` — agents plus the full provenance register
+- `WS /ws/stream`, continuous telemetry and agent trace
+- `POST /api/decide/{thread}`, the Farm Director's verdict, resumes the thread
+- `GET /api/health`, agents plus the full provenance register
 
 When a decision is outstanding the world **pauses**. That is the correct
 behaviour for an agentic operations system: the swarm does not steamroll ahead
@@ -205,7 +205,7 @@ inside the scenario rather than watching two quiet days of baseline.
 
 ---
 
-## Layer 4 — HITL Command Center (`dashboard/`)
+## Layer 4, HITL Command Center (`dashboard/`)
 
 Next.js App Router, Tailwind, one WebSocket.
 
@@ -214,9 +214,9 @@ rather than rubber-stamp:
 
 - what the agent wants, and on what target
 - **rationale** in plain language
-- **blast radius** — what breaks if this is wrong
-- **cost of inaction** — what happens if we do nothing
-- **why it was escalated** — the risk factors, itemised
+- **blast radius**, what breaks if this is wrong
+- **cost of inaction**, what happens if we do nothing
+- **why it was escalated**, the risk factors, itemised
 - **risk and urgency** as separate scored axes
 - **reversibility**
 - the underlying **evidence** values

@@ -28,7 +28,7 @@ function AgentsTab({ d }: { d: StreamMessage }) {
     <div className="space-y-4">
       <p className="text-[11px] leading-relaxed text-slate-400">
         Every row below is <span className="text-slate-200">real tool telemetry</span> recorded by
-        the sensor layer — which agent called which tool, how long it took, and what came back.
+        the sensor layer, which agent called which tool, how long it took, and what came back.
         Not a narrative written after the fact.
       </p>
 
@@ -151,7 +151,7 @@ export function OrchestratorTab({ d, wide = false }: { d: StreamMessage; wide?: 
       </div>
 
       <div>
-        <div className="label mb-2">Dispatch — why each specialist woke</div>
+        <div className="label mb-2">Dispatch, why each specialist woke</div>
         <div className={`${wide ? "max-h-[420px]" : "max-h-[220px]"} space-y-1.5 overflow-y-auto`}>
           {d.trace
             .filter((t) => t.phase === "triage")
@@ -166,7 +166,7 @@ export function OrchestratorTab({ d, wide = false }: { d: StreamMessage; wide?: 
       </div>
 
       <div>
-        <div className="label mb-2">Routing — round 2 responders</div>
+        <div className="label mb-2">Routing, round 2 responders</div>
         <div className="space-y-1.5">
           {d.trace
             .filter((t) => t.phase === "mesh" || t.phase === "respond")
@@ -236,7 +236,7 @@ function HitlTab({
         <div className="flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${pending ? "bg-fuchsia-500" : "bg-sig-500"}`} />
           <span className="text-sm font-semibold text-slate-100">
-            {pending ? "System halted — awaiting your decision" : "Swarm operating autonomously"}
+            {pending ? "System halted, awaiting your decision" : "Swarm operating autonomously"}
           </span>
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
@@ -303,7 +303,7 @@ function HitlTab({
       )}
 
       <div>
-        <div className="label mb-2">Audit trail — your decisions</div>
+        <div className="label mb-2">Audit trail, your decisions</div>
         {d.decision_log.length === 0 && (
           <p className="text-[11px] text-slate-600">No decisions recorded yet this session.</p>
         )}
@@ -397,7 +397,7 @@ function ControlTab({
           ))}
         </div>
         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
-          The world pauses at the gate regardless of speed — it will not run past a decision.
+          The world pauses at the gate regardless of speed, it will not run past a decision.
         </p>
       </div>
 
@@ -464,37 +464,37 @@ function ControlTab({
 function CaptureTab() {
   const frames = [
     {
-      name: "01 — the problem",
+      name: "01, the problem",
       note: "Three production areas, one glance. The tiles say what a non-specialist needs to know before anything else.",
       key: "Click any tile",
     },
     {
-      name: "02 — the plain-language layer",
+      name: "02, the plain-language layer",
       note: "Every number paired with a consequence. Hover any term for its definition.",
       key: "Hover a metric",
     },
     {
-      name: "03 — the constraint that is not obvious",
+      name: "03, the constraint that is not obvious",
       note: "Cooling competes with hardware, not water. Four misting banks draw 53 m³/h against 27,000 for the pivots.",
       key: "Open Infrastructure",
     },
     {
-      name: "04 — the economics of the herd",
+      name: "04, the economics of the herd",
       note: "The airlifted animals are mostly heifers. They eat for 18 months before producing anything.",
       key: "Open Livestock",
     },
     {
-      name: "05 — the agents arguing",
+      name: "05, the agents arguing",
       note: "Seven specialists, one blackboard, two rounds. Nobody decides on a single point of view.",
       key: "Open the mesh",
     },
     {
-      name: "06 — the human gate",
+      name: "06, the human gate",
       note: "Approve or reject, with the consequence of each stated in plain English. Both recorded.",
       key: "Approve a decision",
     },
     {
-      name: "07 — the evidence",
+      name: "07, the evidence",
       note: "Panel → Agents. Real telemetry: which agent called which tool, and what came back.",
       key: "Open this panel",
     },
@@ -502,7 +502,7 @@ function CaptureTab() {
   return (
     <div className="space-y-4">
       <p className="text-[11px] leading-relaxed text-slate-400">
-        A suggested shot list for the deck. Each state below is reachable from the UI — set the
+        A suggested shot list for the deck. Each state below is reachable from the UI, set the
         scene, then capture a clean frame of the main canvas (hide this panel for full-bleed
         slides).
       </p>
@@ -549,7 +549,7 @@ export function ControlPanel({
           <button
             onClick={onToggle}
             aria-label="Open the operations panel"
-            title="Open the operations panel — orchestrator, HITL, tool calls"
+            title="Open the operations panel, orchestrator, HITL, tool calls"
             className="flex items-center gap-2 rounded-l-lg border border-r-0 border-sig-500/60 bg-ink-800/95 px-2.5 py-5 text-sig-300 shadow-2xl shadow-black/40 backdrop-blur transition hover:bg-ink-700 hover:text-sig-200"
             style={{ writingMode: "vertical-rl" }}
           >

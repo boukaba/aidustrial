@@ -67,7 +67,7 @@ function CropDetail({ p }: { p: Packet }) {
   const c = p.crop_production;
   return (
     <div className="space-y-4">
-      <Section title="Each field — is it growing?" hint="click a metric to learn what it means">
+      <Section title="Each field, is it growing?" hint="click a metric to learn what it means">
         <div className="space-y-2">
           {c.fields.map((f) => {
             const soil = explainSoilMoisture(f.soil_moisture_pct);
@@ -125,7 +125,7 @@ function CropDetail({ p }: { p: Packet }) {
                 {f.water_stress_days > 0 && (
                   <p className="mt-2 border-t border-ink-800 pt-2 text-[10px] text-crit-400">
                     {f.water_stress_days} consecutive day
-                    {f.water_stress_days === 1 ? "" : "s"} without enough water — growth stopped.
+                    {f.water_stress_days === 1 ? "" : "s"} without enough water, growth stopped.
                   </p>
                 )}
               </div>
@@ -167,7 +167,7 @@ function LivestockDetail({ p }: { p: Packet }) {
         plain={{
           line: `${nonProdPct.toFixed(0)}% of the animals on site produce no milk yet.`,
           because:
-            "Most of the herd is heifers and calves. They arrived from the United States and will not start giving milk for roughly 18 months. Until then they eat feed and water without paying anything back — that is the real cash-flow shape of this project.",
+            "Most of the herd is heifers and calves. They arrived from the United States and will not start giving milk for roughly 18 months. Until then they eat feed and water without paying anything back, that is the real cash-flow shape of this project.",
           level: "watch",
         }}
       />
@@ -189,7 +189,7 @@ function LivestockDetail({ p }: { p: Packet }) {
           ))}
           <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
             Livestock exporters sell breeding animals, so the shipment is mostly heifers and dry
-            cows — not cows in milk. That is why the projected milk yield takes years to arrive.
+            cows, not cows in milk. That is why the projected milk yield takes years to arrive.
           </p>
         </Section>
       </div>
@@ -339,7 +339,7 @@ function MilkDetail({ p }: { p: Packet }) {
           value={m.powder_live ? "Commissioned" : "Pre-commissioning"}
         />
         <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-          On the real project the powder line is not running yet — first production is targeted
+          On the real project the powder line is not running yet, first production is targeted
           for late 2027. Until then milk leaves as liquid product.
         </p>
       </Section>
@@ -454,7 +454,7 @@ export function AreaDetail({ p, area }: { p: Packet; area: AreaId }) {
     <div className="space-y-4">
       <PlainNote
         plain={{
-          line: "The specialists are not independent dashboards — they argue with each other.",
+          line: "The specialists are not independent dashboards, they argue with each other.",
           because:
             "A cooling decision belongs to the herd specialist, but whether the water and the hardware exist belongs to the agronomist and the logistics agent. The system routes those questions between them and only escalates to a human once they have answered each other.",
           level: "ok",

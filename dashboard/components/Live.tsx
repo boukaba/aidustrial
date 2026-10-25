@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
  *
  * The core problem with the previous version: numbers updated over the socket
  * but nothing on screen SIGNALLED the change, so a genuinely live feed looked
- * like a static screenshot. A viewer has to be told "this just moved" — by the
+ * like a static screenshot. A viewer has to be told "this just moved", by the
  * interface, not by a caption.
  */
 

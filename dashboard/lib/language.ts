@@ -3,7 +3,7 @@
  *
  * The complaint that drove this file: the UI was readable only by someone who
  * already runs a dairy. Every label here is written for a curious adult who
- * does not know the domain. Technical terms are not banned — they are hidden
+ * does not know the domain. Technical terms are not banned, they are hidden
  * behind a "details" disclosure and kept available for operators.
  *
  * Rule followed throughout: name the thing by what it DOES, not by what it is
@@ -32,16 +32,16 @@ export { agentName as AGENT_NAME, agentRole as AGENT_ROLE } from "./identity";
 export const TERM: Record<string, string> = {
   "Effective heat load":
     "How hard the heat is on the cows. Combines air temperature, humidity and direct sunshine. Ordinary temperature alone understates it in a sunny desert.",
-  "THI": "Temperature-Humidity Index — the standard heat measure for farm animals.",
+  "THI": "Temperature-Humidity Index, the standard heat measure for farm animals.",
   "Rumination":
     "How long the cows spend chewing each day. Collapses before their temperature does, so it is the earliest warning of heat stress.",
   "Somatic cell count":
     "A measure of infection in the milk. High numbers mean dirty milk and a price penalty. The legal limit is 200 thousand cells per millilitre.",
-  "Aquifer": "An underground water store. The one under Adrar is fossil water — it formed thousands of years ago and does not refill.",
+  "Aquifer": "An underground water store. The one under Adrar is fossil water, it formed thousands of years ago and does not refill.",
   "Fossil aquifer": "Groundwater that took millennia to accumulate and is now being removed far faster than it can form.",
-  "Pivot": "A centre-pivot irrigation machine — a long pipe on wheels that rotates slowly around a field, spraying water.",
+  "Pivot": "A centre-pivot irrigation machine, a long pipe on wheels that rotates slowly around a field, spraying water.",
   "Standing DM": "How much crop is growing in the field right now, measured without the water in it.",
-  "DM": "Dry Matter — the part of the feed the cow can actually use.",
+  "DM": "Dry Matter, the part of the feed the cow can actually use.",
   "Fodder": "Feed grown on the farm for the cows.",
   "Forage": "Grass, corn and other feed crops grown for animals.",
   "Ensiling": "Storing cut grass or corn in an airtight silo so it ferments and keeps.",
@@ -49,12 +49,12 @@ export const TERM: Record<string, string> = {
   "Parlour": "The milking shed where cows are milked.",
   "Heifer": "A young cow that has not had a calf yet.",
   "Dry cow": "A cow that is not pregnant and not being milked, resting before her next calf.",
-  "SCC": "Somatic Cell Count — see above.",
+  "SCC": "Somatic Cell Count, see above.",
   "Misting":
     "Spraying fine water at the cows. In dry desert air the water evaporates and pulls heat off the animal, which is why it works so well here.",
   "Holstein": "The black-and-white dairy breed used here.",
   "Breeding weight":
-    "The weight a young cow has to reach before she can safely get pregnant. Below it, she calves late — and that delay repeats every cycle.",
+    "The weight a young cow has to reach before she can safely get pregnant. Below it, she calves late, and that delay repeats every cycle.",
   "Calving": "A cow giving birth.",
   "Bulk tank": "The refrigerated tank where milk is held before it goes to the powder plant.",
   "Spray dryer": "The machine that turns milk into powdered milk.",

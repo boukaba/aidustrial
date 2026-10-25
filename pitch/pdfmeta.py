@@ -15,7 +15,7 @@ from pathlib import Path
 from pypdf import PdfReader, PdfWriter
 
 META = {
-    "/Title": "Aidustrial — Pitch Deck",
+    "/Title": "Aidustrial, Pitch Deck",
     "/Author": "Mohammed Boukaba",
     "/Subject": (
         "An agentic operations layer for large industrial farms: seven specialist "
@@ -42,7 +42,7 @@ def main() -> None:
     tmp.replace(path)
 
     back = PdfReader(str(path)).metadata or {}
-    print(f"[pdf] {path.name} — {len(PdfReader(str(path)).pages)} pages")
+    print(f"[pdf] {path.name}, {len(PdfReader(str(path)).pages)} pages")
     for k in ("/Title", "/Author", "/Subject"):
         print(f"      {k:9s} {back.get(k)}")
 

@@ -4,7 +4,7 @@ Working notes for anyone (human or AI) picking this up: **why aidustrial
 exists**, **what has actually been built**, **where everything lives**, and
 **which mistakes were made along the way** so they don't get repeated.
 
-This is not the architecture doc — that is [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+This is not the architecture doc, that is [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 This is the *intent* and the *history*. Read `docs/DATA_PROVENANCE.md` before
 quoting any number to an outside party.
 
@@ -12,17 +12,17 @@ quoting any number to an outside party.
 
 ## Why this exists
 
-`aidustrial` is an **agentic operations layer for industrial agro-complexes** —
+`aidustrial` is an **agentic operations layer for industrial agro-complexes**, 
 software where specialist agents watch a facility, each holding a narrow
 mandate, hand findings to a coordinator, and stop to ask a human before anything
 consequential happens.
 
 The demo is built **around** Baladna Algeria S.P.A., the USD 3.5 bn integrated
-dairy and milk-powder project in Adrar Province, Algerian Sahara — using that
+dairy and milk-powder project in Adrar Province, Algerian Sahara, using that
 project's published parameters where they exist; every other value is
 explicitly labelled as an assumption.
 
-**There is no relationship with Baladna — yet.** Not a partner, not engaged, no
+**There is no relationship with Baladna, yet.** Not a partner, not engaged, no
 contact. Baladna is the target: the architecture (the tool boundary in
 particular) exists so this can be integrated there in full, and integrating
 with them is the intended next step. Say that we are building toward them.
@@ -32,7 +32,7 @@ The demo exists to make one idea undeniable to judges and investors:
 
 > A farm is not run by one omniscient system. It is run by specialists who each
 > see a sliver, disagree with each other, and still need to reach one safe
-> decision — and that decision is ultimately a human's.
+> decision, and that decision is ultimately a human's.
 
 Everything in the codebase serves that argument. When a feature could either
 show the idea more clearly or look more impressive, clarity wins.
@@ -41,7 +41,7 @@ show the idea more clearly or look more impressive, clarity wins.
 telemetry.** 45 wells are drilled, one barley crop harvested, ~30,000 cows land
 late 2026, first milk powder late 2027. Every dashboard number is simulated and
 labelled as such. The reframe: the highest-value time to deploy agentic ops is
-*before* the first animal arrives — which is exactly the window Baladna is in.
+*before* the first animal arrives, which is exactly the window Baladna is in.
 We never fake "live" telemetry, and we never let a judge believe the numbers
 are real.
 
@@ -50,19 +50,19 @@ are real.
 ## Architecture in one diagram
 
 ```
-LAYER 4   HITL Command Center — Next.js           (:3010)
+LAYER 4   HITL Command Center, Next.js           (:3010)
           Mission-control shell · Agents at work · Farm Director
           approves/rejects · 60s tour
-LAYER 3   Orchestrator — LangGraph state machine   (:8781)
+LAYER 3   Orchestrator, LangGraph state machine   (:8781)
           Routes context, owns the gate, does no work itself.
           sense → triage → wake → consult → gate → ┬→ execute
                                                     └→ human_gate ⏸
-LAYER 2   Seven agents — 4 specialists + 3 domain
+LAYER 2   Seven agents, 4 specialists + 3 domain
           Crop · Agronomist · Veterinarian · Calving · Milking ·
           Maintenance · Logistics. Narrow mandate, explicit rule.
-LAYER 1   Sensory Cortex — tools/sensors.py
+LAYER 1   Sensory Cortex, tools/sensors.py
           The ONLY boundary between agents and the world.
-LAYER 0   Digital twin — Adrar site simulation
+LAYER 0   Digital twin, Adrar site simulation
           Seeded with researched Baladna parameters.
 ```
 
@@ -137,9 +137,9 @@ components/Tour.tsx     60s modal tour, 7 stops, live numbers per stop.
 components/ControlPanel.tsx  Right-side technical panel (trace, findings,
                     events, speed). The "details" disclosure.
 components/Panels.tsx   EventsPanel, FindingsPanel, TraceFeed used on System.
-components/Mesh.tsx     MeshBoard — the raw 7×N mesh grid on System.
-components/AreaNav.tsx  PlainNote, Term — plain-language helper widgets.
-components/Areas.tsx    ★ DEAD CODE — 310 lines, zero imports. The old
+components/Mesh.tsx     MeshBoard, the raw 7×N mesh grid on System.
+components/AreaNav.tsx  PlainNote, Term, plain-language helper widgets.
+components/Areas.tsx    ★ DEAD CODE, 310 lines, zero imports. The old
                     crop/livestock/milk views, superseded by AreaDetail.
                     Safe to delete.
 ```
@@ -160,13 +160,13 @@ are the load-bearing pieces of the mission-control look.
 | 5 | `3aad954` | Plain-language layer, clickable areas, guided tour |
 | 6 | `a05ee94` | Control panel with live agent telemetry, orchestration, HITL |
 | 7 | `51956ac` | **Left sidebar** + a rewrite of every user-facing string for non-industrial readers |
-| 8 | `36104e8` | **Made the agents visible** — `watch()` on all 7, live readings, mesh feed; fixed a calls-count bug |
+| 8 | `36104e8` | **Made the agents visible**, `watch()` on all 7, live readings, mesh feed; fixed a calls-count bug |
 | 9 | `a276f11` | 60-second tour as a **modal** with a close button, live numbers per stop |
 | 10 | `fbe0537` | This document |
-| 11 | `cd35380` | **Mission-control rebuild** — per-agent identity, SVG glyphs everywhere, flash-on-change numbers, signal-flow diagram, slim decision strip |
+| 11 | `cd35380` | **Mission-control rebuild**, per-agent identity, SVG glyphs everywhere, flash-on-change numbers, signal-flow diagram, slim decision strip |
 | 12 | `6c6b1d6` | This document as a session-handoff (file map, exact commands, loose ends) |
-| 13 | `8521ba6` | **The agents actually reason** — free-LLM decision path, hidden narrator agent, escalation-only safety rules |
-| 14 | *(this)* | **Two-track reasoning** — Jev/SystemOne decides in ~0.9s with probabilities; flash keeps writing the prose |
+| 13 | `8521ba6` | **The agents actually reason**, free-LLM decision path, hidden narrator agent, escalation-only safety rules |
+| 14 | *(this)* | **Two-track reasoning**, Jev/SystemOne decides in ~0.9s with probabilities; flash keeps writing the prose |
 
 ---
 
@@ -186,13 +186,13 @@ They divide the work on their strengths:
 | Endpoint | `opencode.ai/zen/v1/systemone` | `tokenharbor.ai/v1/chat/completions` |
 | Model | `jev-1.13-free` | `deepseek-v4.1-flash` |
 | Asks | typed questions → values + probabilities | "write a JSON verdict" |
-| Latency | **~0.9s** | 12–66s |
-| Input tokens | ~400 | ~2–4k (prose track) / 8.4k (SDK) |
+| Latency | **~0.9s** | 12-66s |
+| Input tokens | ~400 | ~2-4k (prose track) / 8.4k (SDK) |
 | Produces | *is it warranted, which action, how urgent, how severe* | *summary + rationale a judge reads* |
-| Can invent an action? | **No** — it picks from a closed `choice` set we supply | Yes, filtered post-hoc against the vocabulary |
-| JSON parsing | None — it returns typed answers | Yes, with truncation repair |
+| Can invent an action? | **No**, it picks from a closed `choice` set we supply | Yes, filtered post-hoc against the vocabulary |
+| JSON parsing | None, it returns typed answers | Yes, with truncation repair |
 
-The latency gap is the point. A verdict that lands 12–66s after the readings
+The latency gap is the point. A verdict that lands 12-66s after the readings
 that caused it is a verdict about the past. Jev lands on nearly the same tick,
 so what the agents *do* stays in step with the world; only the prose lags, and
 the prose is commentary.
@@ -225,7 +225,7 @@ local OpenCode client is the supported path, and an explicit
 What is *not* usable: Zen's **free chat-completions tier called
 programmatically**. It answers a bare HTTP call with
 `FreeTierError: OpenCode's free tier can only be used from within OpenCode`
-(HTTP 403). Do not try to route around that restriction — it is an access
+(HTTP 403). Do not try to route around that restriction, it is an access
 control, and this project's honesty constraint applies to how we obtain
 compute, not only to what we display.
 
@@ -238,20 +238,20 @@ documented endpoint, which is why it works where the free chat tier refuses.
 to that auth store.
 
 Jev is worth a paragraph of its own because it is a different *kind* of model.
-You give it typed questions — `noul` (yes/no), `choice` (pick from a list you
-supply) and `score` (rate against a rubric) — and it returns values *with
+You give it typed questions, `noul` (yes/no), `choice` (pick from a list you
+supply) and `score` (rate against a rubric), and it returns values *with
 probabilities*. Measured against the free flash model:
 
 | | free flash | **Jev free** |
 |---|---|---|
-| Latency | 12–66s | **~0.85s** |
-| Input tokens | 8,400 (SDK) / 2–4k | **~400** |
+| Latency | 12-66s | **~0.85s** |
+| Input tokens | 8,400 (SDK) / 2-4k | **~400** |
 | Output shape | prose → JSON parse | **typed + probabilities** |
 | JSON repair needed | yes | **no** |
 
-The OpenCode **SDK** (`@opencode-ai/sdk`) was tested and works —
+The OpenCode **SDK** (`@opencode-ai/sdk`) was tested and works, 
 `createOpencode()` starts a real local server and `session.prompt` routes
-through genuine OpenCode, so no FreeTierError, cost $0 — but it is the wrong
+through genuine OpenCode, so no FreeTierError, cost $0, but it is the wrong
 tool *for us*: every prompt becomes a full coding-agent session with tool
 definitions and an 8.4k-token system prompt. That is why this project speaks
 to SystemOne directly instead. Worth knowing if you ever want real agent
@@ -259,7 +259,7 @@ sessions rather than a one-shot verdict.
 
 ### The three constraints
 
-**1. Latency.** Neither track may block a tick — the world runs 12×/second and
+**1. Latency.** Neither track may block a tick, the world runs 12×/second and
 the graph runs in a worker thread via `asyncio.to_thread`. Both use the same
 shape: `request()` is thread-safe and non-blocking (it only stashes a payload),
 and a background `asyncio` task started on server startup drains a queue. Ticks
@@ -267,7 +267,7 @@ keep running on rules while calls are in flight and pick up verdicts on a later
 pass.
 
 - **Prose track:** at most **3 concurrent**, **24s** cap, **22s** per-agent
-  cooldown. The twin changes every tick so a content-hash cache can never hit —
+  cooldown. The twin changes every tick so a content-hash cache can never hit, 
   the cooldown is what stops hammering the free tier.
 - **Decision track:** at most **4 concurrent**, **8s** cap (measured 0.85s),
   **9s** cooldown, polling every **150ms** so a verdict lands on nearly the same
@@ -282,7 +282,7 @@ pass.
 - Neither may **de-escalate**. Severity and urgency may only *rise* from what
   the rules found.
 - An action a model invents that the rules did not find is always scored
-  **above** the human-gate ceiling — we have no evidence to verify it, so it
+  **above** the human-gate ceiling, we have no evidence to verify it, so it
   faces a person. For Jev this is structurally guaranteed too: it picks from a
   closed `choice` set (`OWNED` + `no_action`) it cannot add to.
 - A low-confidence pick is **refused**, not acted on. Jev's `ACTION_FLOOR` is
@@ -302,7 +302,7 @@ unchanged.
 
 `agents/narrator.py`. It watches the same simulated physics and writes short
 plain-language observations for a reader who has never run a dairy. It proposes
-nothing, gates nothing, and never appears in the human decision queue — the only
+nothing, gates nothing, and never appears in the human decision queue, the only
 kind of agent worth giving a free-form model. Runs on its own 12s cadence,
 entirely off the graph tick. It even writes its own honesty disclaimer.
 
@@ -310,7 +310,7 @@ entirely off the graph tick. It even writes its own honesty disclaimer.
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `OPENCODE_API_KEY` | — | Both tracks. Falls back to the OpenCode auth store. |
+| `OPENCODE_API_KEY` |, | Both tracks. Falls back to the OpenCode auth store. |
 | `OPENCODE_AUTH_PATH` | `~/.local/share/opencode/auth.json` | Where the fallback key is read from. |
 | `AIDUSTRIAL_LLM` | on | `off` / `0` / `false` / `no` disables the prose track. |
 | `AIDUSTRIAL_ZEN_BASE` | `http://127.0.0.1:4814` | Local/remote OpenCode server; explicit value opts in. |
@@ -321,11 +321,11 @@ entirely off the graph tick. It even writes its own honesty disclaimer.
 
 ### What is exposed to the UI
 
-- `snapshot.llm` — prose track: `{enabled, model, calls, failures, cache_hits, dropped_actions, last_ms, last_error, agents_reasoned}`.
-- `snapshot.decision` — decision track: same shape plus `endpoint` and `rejected_low_confidence`.
-- `snapshot.narration` — narrator stats + recent observations.
-- `mesh.agents[i].decided` / `.decided_ms` / `.decided_by` / `.warranted` / `.action_p` — the decision track's live state, including the odds on the action it picked.
-- `mesh.agents[i].thinking` / `.reasoned` / `.rationale` / `.reasoned_by` / `.reasoned_ms` — the prose track's state.
+- `snapshot.llm`, prose track: `{enabled, model, calls, failures, cache_hits, dropped_actions, last_ms, last_error, agents_reasoned}`.
+- `snapshot.decision`, decision track: same shape plus `endpoint` and `rejected_low_confidence`.
+- `snapshot.narration`, narrator stats + recent observations.
+- `mesh.agents[i].decided` / `.decided_ms` / `.decided_by` / `.warranted` / `.action_p`, the decision track's live state, including the odds on the action it picked.
+- `mesh.agents[i].thinking` / `.reasoned` / `.rationale` / `.reasoned_by` / `.reasoned_ms`, the prose track's state.
 
 The Agents screen shows **two status lines** ("deciding via …" and "writing via …")
 and each card shows both attributions, which makes the latency contrast visible:
@@ -343,7 +343,7 @@ That contrast is the argument for two tracks, made on the screen.
   the string back to the last well-formed prefix. Free models stop mid-key as
   often as mid-value.
 - **A Jev `Decision` with an empty body counted as valid.** `valid` was
-  `bool(self.model)`, and `model` is always set — so `answers: {}` or
+  `bool(self.model)`, and `model` is always set, so `answers: {}` or
   `{"action": {}}` looked like a confident "nothing to do". It is now
   `bool(self.model) and self.answered`, where `answered` is only set once an
   informative answer was actually extracted. A malformed reply must never look
@@ -370,7 +370,7 @@ The rebuild (`cd35380`) fixed four things, in order of damage:
 3. **Nothing signalled change.** Numbers updated silently over the socket, so
    a live feed read as a screenshot. Now `LiveNumber` flashes in its own
    colour the instant the value changes. This was the single most important
-   fix — "watching an agent work" was invisible before it.
+   fix, "watching an agent work" was invisible before it.
 4. **Emoji icons** read as a 2015 emoji picker on top of a serious interface.
    All replaced with a consistent stroked SVG system in `components/Icons.tsx`.
 
@@ -385,8 +385,8 @@ purpose and respects `prefers-reduced-motion`.
 Most of the build was getting things wrong first and then being honest about it.
 These are the ones worth knowing before reading the code.
 
-**1. Cooling is scarce hardware, not scarce water.** The obvious framing —
-cooling competes with irrigation for the aquifer — is false by a factor of ~500:
+**1. Cooling is scarce hardware, not scarce water.** The obvious framing, 
+cooling competes with irrigation for the aquifer, is false by a factor of ~500:
 
 ```
 4 misting banks       =     53 m³/h
@@ -395,7 +395,7 @@ cooling competes with irrigation for the aquifer — is false by a factor of ~50
 ```
 
 Phase 1 installed misting in only 4 of 8 barns. So the real decision is *which
-barns get it* — a genuine allocation under scarcity. That is both the more
+barns get it*, a genuine allocation under scarcity. That is both the more
 honest and the better demo.
 
 **2. Risk and urgency are different axes.** Sorting the human queue by risk
@@ -415,7 +415,7 @@ and a re-proposal cooldown.
 
 **5. The world is not graph state.** LangGraph checkpoints every channel via
 msgpack. The `World` is live process state owned by the session and reached
-through the sensor gateway — putting it in graph state is wrong and physically
+through the sensor gateway, putting it in graph state is wrong and physically
 impossible.
 
 ---
@@ -453,7 +453,7 @@ knows it was considered, not stumbled into.
   twice. If you add a new view, check it doesn't reintroduce this.
 - **The agronomist's water row mixed instantaneous and annual units.** Rather
   than silently change the model, we relabelled it. See the modelling-bug note
-  above — same principle: honest label beats quiet fix.
+  above, same principle: honest label beats quiet fix.
 
 ---
 
@@ -471,7 +471,7 @@ uv run --no-project --with "langgraph>=0.2" --with "langchain-core>=0.3" \
 
 For the agents to actually reason, OpenCode must be installed and authenticated
 (or `OPENCODE_API_KEY` set). Without it the system still runs, just on rules
-only — check `GET /api/site/demo` → `llm.enabled` and `decision.enabled`.
+only, check `GET /api/site/demo` → `llm.enabled` and `decision.enabled`.
 
 Frontend on `:3010` (production start; `pnpm install` first if needed):
 
@@ -482,13 +482,13 @@ pnpm exec next start -p 3010
 pnpm exec next dev -p 3010
 ```
 
-Open <http://localhost:3010>. The session opens at **Day 3, midday** — the pump
+Open <http://localhost:3010>. The session opens at **Day 3, midday**, the pump
 failure has just happened and the heatwave starts tomorrow, so a five-minute
 judge watch lands inside the scenario.
 
 Useful knobs on the page: **Speed** (4× / 14× / 40×) and the **Panel** button
 (right-side technical disclosure). The **Agents at work** screen is the money
-shot — the signal-flow diagram lights a line only when that agent actually
+shot, the signal-flow diagram lights a line only when that agent actually
 spoke this round, and each card shows the model's own rationale under the
 finding.
 
@@ -524,7 +524,7 @@ for k in ('decision','llm'):
 Expect `enabled True` for both, a growing `calls`, and `last_ms` near **900ms**
 for the decision track and in the **thousands** for the prose track. Within ~30s
 of a tick running, `agents_decided` / `agents_reasoned` should be non-empty.
-A non-zero `rejected_low_confidence` is healthy — it is the gate refusing a
+A non-zero `rejected_low_confidence` is healthy, it is the gate refusing a
 guessy pick, and it is shown in the UI rather than hidden.
 
 ---
@@ -547,10 +547,10 @@ guessy pick, and it is shown in the UI rather than hidden.
   criteria from `OWNED` + `no_action`. Do not widen it with a free-text
   "other" option, and do not accept a choice that is not a key of that dict.
   The closed set is why an agent structurally cannot be handed an action it
-  does not own — a stronger guarantee than filtering a string after the fact.
+  does not own, a stronger guarantee than filtering a string after the fact.
 - **Refuse low-confidence picks; count them.** Jev returns probabilities for a
   reason. Below `ACTION_FLOOR` (0.65) *and* `WARRANT_FLOOR` (0.55), both, the
-  pick is not merged. Increment the counter and let the UI show it — silently
+  pick is not merged. Increment the counter and let the UI show it, silently
   acting on a 0.53 is how a demo stops being honest.
 - **Every user-facing string goes in `dashboard/lib/language.ts`.** No jargon
   in the UI. Name things by what they *do* ("Cow food", not "Crop production").
@@ -603,19 +603,19 @@ Known loose ends, in rough priority order:
    config table together.
 4. **Only the agents triage wakes get a reasoning call.** That is correct (an
    agent with nothing to look at should not burn the free tier) but it means a
-   quiet scenario shows 2–3 agents reasoning, not 7. If you want more visible
+   quiet scenario shows 2-3 agents reasoning, not 7. If you want more visible
    reasoning, either widen `triage`'s wake rules or add a low-priority "every
    agent reasons every N seconds" sweep.
-5. **Prose latency is still 12–66s on the free tier.** Decisions no longer lag
+5. **Prose latency is still 12-66s on the free tier.** Decisions no longer lag
    (Jev is ~0.9s), but the written rationale does, and the tick never blocks on
    it. A paid model would cut this to ~1s. `AIDUSTRIAL_LLM_MODEL` is the knob.
    The visible `decided by … · 849ms` over `words by … · 15485ms` contrast on
-   the cards is intentional — it is the argument for two tracks, on screen.
-6. **Jev sometimes contradicts itself** — e.g. an action at 76% confidence
+   the cards is intentional, it is the argument for two tracks, on screen.
+6. **Jev sometimes contradicts itself**, e.g. an action at 76% confidence
    alongside a "not warranted" answer. Both gates must clear, so this is
    refused rather than acted on. If it turns out to be common rather than
    occasional, consider asking only the `choice` and inferring warrant from it.
-7. **No real photo/thumbnail per agent** — optional warmth, low priority.
+7. **No real photo/thumbnail per agent**, optional warmth, low priority.
 8. **The Adrar twin is simulated.** The moment real telemetry exists, point
    `sensors.py` at it and the rest of the stack is unchanged.
 
@@ -627,7 +627,7 @@ Known loose ends, in rough priority order:
 2. Start both services with the commands above and open
    <http://localhost:3010>. Click through every nav item.
 3. The most useful screens to understand the current state: **Agents at work**
-   (the design system at full strength) and **Cow food** (the weakest view —
+   (the design system at full strength) and **Cow food** (the weakest view, 
    that's the gap to close).
 4. Check the loose ends list above and pick one. Item 1 (delete dead
    `Areas.tsx`) is a two-minute win. Item 2 is the main remaining work.

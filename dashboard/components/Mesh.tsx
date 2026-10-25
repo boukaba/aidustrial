@@ -32,7 +32,7 @@ export function MeshBoard({ p }: { p: Packet }) {
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
         {msgs.length === 0 && (
           <p className="text-xs text-slate-600">
-            Board empty — no specialist woke, or none had anything to broadcast.
+            Board empty, no specialist woke, or none had anything to broadcast.
           </p>
         )}
         {msgs.map((m) => {

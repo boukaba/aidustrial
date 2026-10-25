@@ -183,7 +183,7 @@ export function HerdCard({ p, onClick }: { p: Packet; onClick: () => void }) {
     deficient.length > 0
       ? under +
         " young cows are a bit under the weight they need to have a calf on schedule. A small feed adjustment now saves a whole cycle later."
-      : "The cows, calves and young stock are all where they should be. Most of them are heifers — animals that arrived by air and will start giving milk in about 18 months.";
+      : "The cows, calves and young stock are all where they should be. Most of them are heifers, animals that arrived by air and will start giving milk in about 18 months.";
 
   const herdTerm = [TERM.Heifer, TERM["Breeding weight"], TERM["Dry cow"]].join(" ");
 
@@ -268,7 +268,7 @@ export function WaterStrip({ p, onClick }: { p: Packet; onClick: () => void }) {
 
   const line =
     "Using " + pct.toFixed(0) + "% of the year's water allowance" +
-    (status === "good" ? " — this water never refills. " : ". ") + machines + ". " + cooling;
+    (status === "good" ? ", this water never refills. " : ". ") + machines + ". " + cooling;
 
   return (
     <button

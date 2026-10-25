@@ -149,7 +149,7 @@ export default function Command() {
             </div>
           </div>
 
-          {/* The status line is dropped while a decision is pending — the
+          {/* The status line is dropped while a decision is pending, the
               DecisionStrip below already says so, and stating it twice just
               pushed the view down another 80px. */}
           {!pending && (
@@ -286,7 +286,7 @@ export default function Command() {
                 How the farm is run
               </h2>
               <p className="text-sm leading-relaxed text-slate-300">
-                Seven specialists each watch one part of the farm. They do not decide alone — they
+                Seven specialists each watch one part of the farm. They do not decide alone, they
                 ask each other questions first. Only when they agree, and only if the decision is
                 important enough, does the farm stop and wait for you.
               </p>
@@ -319,11 +319,11 @@ export default function Command() {
 
         <footer className="mt-8 border-t border-ink-800 pt-3">
           <p className="text-[10px] leading-relaxed text-slate-600">
-            This is a working model built around the Baladna Algeria project in Adrar — a
+            This is a working model built around the Baladna Algeria project in Adrar, a
             $3.5bn dairy farm under construction, whose first 30,000 animals are mostly heifers
             that will not give milk for about 18 months. That is why automated monitoring is
             worth putting in now, before the animals arrive. We have no relationship with that
-            project — Baladna is the target, and integrating with them is the goal. Every
+            project, Baladna is the target, and integrating with them is the goal. Every
             reading here is simulated from its published parameters.{" "}
             <button
               onClick={() => setPanel(true)}

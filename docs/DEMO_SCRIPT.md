@@ -1,13 +1,13 @@
 # Three-minute demo script
 
-**Target:** 3:00 (acceptable range 2:00–4:00). **Upload:** unlisted YouTube or
+**Target:** 3:00 (acceptable range 2:00-4:00). **Upload:** unlisted YouTube or
 Google Drive, openable without requesting access. **Format:** 16:9, 1080p,
 screen recording with voice-over. No music, no title sequence, no slides before
 the product.
 
 The criteria reward a video that opens with the product, explains the problem in
 under 30 seconds, and shows real usage. This script follows that order. The
-money shot is the **reject/approve contrast** at 1:45 — record it carefully.
+money shot is the **reject/approve contrast** at 1:45, record it carefully.
 
 ---
 
@@ -21,9 +21,9 @@ money shot is the **reject/approve contrast** at 1:45 — record it carefully.
 3. **Warm up the reasoning layer** if you are recording with it on. Open the
    dashboard once, wait for the “deciding via …” and “writing via …” lines to
    show a decided/reasoned count, then reload for the take. If the model is not
-   available, record the rules-only version and use the offline line — do not
+   available, record the rules-only version and use the offline line, do not
    fake it. The gate is the product either way.
-4. Record at 1920×1080 or 1440×900, browser zoom 110–125%. Close other tabs,
+4. Record at 1920×1080 or 1440×900, browser zoom 110-125%. Close other tabs,
    hide bookmarks, silence notifications. Check the microphone level.
 5. Do a 20-second test recording and watch it back. If the screen text is not
    readable at normal size, zoom in and re-record.
@@ -34,7 +34,7 @@ money shot is the **reject/approve contrast** at 1:45 — record it carefully.
 
 ## Shot list and narration
 
-### 0:00–0:15 — Open on the product
+### 0:00-0:15, Open on the product
 
 **On screen:** the dashboard, already paused at the first decision. The
 “PAUSED” strip and the **SIMULATED** badge are visible.
@@ -42,13 +42,13 @@ money shot is the **reject/approve contrast** at 1:45 — record it carefully.
 **Say:**
 
 > “This is Aidustrial. It watches a large dairy farm, and it stops before it does
-> anything consequential. Every number on this screen is simulated — the farm is
+> anything consequential. Every number on this screen is simulated, the farm is
 > a digital twin of a real project in Adrar, Algeria. The decision layer is the
 > part that is real.”
 
 Do not open with a logo or a slide. The first frame is the working product.
 
-### 0:15–0:40 — The problem, in one sentence
+### 0:15-0:40, The problem, in one sentence
 
 **On screen:** click **What’s happening**. Point at the food, herd and water
 cards. Keep the cursor still.
@@ -60,7 +60,7 @@ cards. Keep the cursor still.
 > refill. The herd arrives before its feed does. The hard question is never ‘is
 > there a reading?’ It is ‘which trade-off do we make, and who owns it?’”
 
-### 0:40–1:05 — What the system is
+### 0:40-1:05, What the system is
 
 **On screen:** click **Agents at work**. Let the seven specialist cards and the
 signal-flow diagram breathe for a second. If the reasoning lines are live, point
@@ -69,12 +69,12 @@ line.
 
 **Say:**
 
-> “Seven specialists watch one domain each — crop, water, herd health, calving,
+> “Seven specialists watch one domain each, crop, water, herd health, calving,
 > milk, machinery, supply. They share findings on a blackboard. They can propose
 > actions. They cannot execute them. That is the design: the agents do the
 > watching and reasoning; the human keeps the authority.”
 
-### 1:05–1:45 — The gate
+### 1:05-1:45, The gate
 
 **On screen:** click **Decisions**. Show the proposal, the plain-language
 rationale, “If you approve,” “If you do nothing,” then expand **Show technical
@@ -89,7 +89,7 @@ evidence values. Scroll slowly; do not rush.
 > headcount, water and reversibility. A model may escalate a finding. It may
 > never lower the risk to slip past this gate.”
 
-### 1:45–2:20 — The money shot: reject, then approve
+### 1:45-2:20, The money shot: reject, then approve
 
 **On screen:** click **Reject**. Let the next state load. Open **Decisions** and
 show the rejected entry in the audit log. Then go to **Water & machines** (or
@@ -100,14 +100,14 @@ If your first gate is a different action, say what it is and show its unchanged
 reading. The principle is the same; do not pretend the screen says something it
 does not.
 
-Then take the next decision — or cut to a second take — and click **Approve**.
+Then take the next decision, or cut to a second take, and click **Approve**.
 Show the changed reading or the approved entry in the audit log.
 
 **Say:**
 
 > “Watch what rejection does. The decision is recorded, the agent enters a
 > cooldown so it does not nag, and the farm does not move. The pivot is still
-> hot. Nothing happened — because I said no.
+> hot. Nothing happened, because I said no.
 >
 > Now I approve the next one. The action is applied, the reading changes, and the
 > audit trail says who approved it. That contrast is the product: autonomy where
@@ -116,11 +116,11 @@ Show the changed reading or the approved entry in the audit log.
 If the next decision is not ready, record the approve as a second take and cut.
 Do not stage a fake click or narrate a change that did not happen.
 
-### 2:20–2:45 — Provenance and honesty
+### 2:20-2:45, Provenance and honesty
 
 **On screen:** return to **What’s happening**. Point at the **SIMULATED** badge,
 then open **How it works** or the provenance panel. If you have the repository
-open, show `docs/DATA_PROVENANCE.md` for two seconds — just enough to show that
+open, show `docs/DATA_PROVENANCE.md` for two seconds, just enough to show that
 the assumptions are classified, not hidden.
 
 **Say:**
@@ -130,7 +130,7 @@ the assumptions are classified, not hidden.
 > relationship with Baladna and no live telemetry. I would rather be argued with
 > than believed.”
 
-### 2:45–3:00 — Close on the next step
+### 2:45-3:00, Close on the next step
 
 **On screen:** back to the decision gate or the home screen. End card with the
 repository and demo URL.

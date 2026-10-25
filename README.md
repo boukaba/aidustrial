@@ -25,14 +25,14 @@ blast radius and cost of inaction; nothing moves until they approve or reject.*
 
 ## What it is
 
-Aidustrial is an agentic operations layer for a large industrial farm. Seven specialist agents — crop, agronomy, veterinary, calving,
-milking, maintenance and logistics — read a live simulation through a tool layer,
+Aidustrial is an agentic operations layer for a large industrial farm. Seven specialist agents, crop, agronomy, veterinary, calving,
+milking, maintenance and logistics, read a live simulation through a tool layer,
 share findings on a blackboard, and propose actions.
 
 The promise is narrow and deliberate: **the agents do the watching and the
 reasoning. The human keeps the authority.** Anything consequential stops at a
 human gate with the evidence attached. The system is designed for the moment
-before a site has complete telemetry, when coordination — not sensing — is the
+before a site has complete telemetry, when coordination, not sensing, is the
 expensive problem.
 
 ## The core feature: a gate that actually gates
@@ -76,8 +76,8 @@ at risk 0, 10, 39 and 100.
 
 ### The audit trail survives the process
 
-`agent/src/aidustrial/tools/ledger.py` writes every decision to SQLite — agent,
-action, risk, verdict, and the reason it was gated — alongside events, work
+`agent/src/aidustrial/tools/ledger.py` writes every decision to SQLite, agent,
+action, risk, verdict, and the reason it was gated, alongside events, work
 orders and chat history. `GET /api/ledger` returns it, plus the policy table.
 
 An action taken without a human is recorded too, marked `auto-policy` with the
@@ -91,7 +91,7 @@ It answers from three places: its live readings, retrieved passages from the
 eight-document corpus (`agent/knowledge/`), and its own events and decisions from
 the ledger. Replies carry their citations.
 
-Retrieval is SQLite FTS5 — no embeddings, no vector service, no model download.
+Retrieval is SQLite FTS5, no embeddings, no vector service, no model download.
 The corpus is dense with exact tokens (`PIVOT-3`, `mm/s`, `SCC`) that BM25
 matches well, and a retrieval layer that cannot fail a container build is worth
 more here than one that scores marginally better.
@@ -105,11 +105,11 @@ so the chat still works on a deployment without credentials.
 Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 20+, pnpm.
 
 ```bash
-# 1. Agent core — LangGraph + FastAPI on :8781
+# 1. Agent core, LangGraph + FastAPI on :8781
 cd agent
 uv run uvicorn aidustrial.server.app:app --app-dir src --port 8781
 
-# 2. Dashboard — Next.js on :3010
+# 2. Dashboard, Next.js on :3010
 cd dashboard
 pnpm install
 pnpm exec next dev -p 3010
@@ -162,7 +162,7 @@ A model-originated action always faces a human because there is no sensor figure
 to feed the risk scorer. Risk stays deterministic.
 
 Without credentials, both tracks report as disabled and the dashboard says
-**“Reasoning backend offline — deterministic rules and the human gate are
+**“Reasoning backend offline, deterministic rules and the human gate are
 active.”** There are no hidden failures in the demo header.
 
 Configuration and the full safety argument are in
@@ -179,7 +179,7 @@ coordination problem. The public-data research is in
 growth, silo inventory, tanker positions and the weather. The site has **no
 operating herd and no live telemetry**: 45 wells are drilled, the first 30,000
 animals are due from November 2026, and first milk powder is targeted for late
-2027. The highest-value deployment window is *before* the first animal arrives —
+2027. The highest-value deployment window is *before* the first animal arrives, 
 which is exactly the window this prototype is built for.
 
 **Assumptions are labelled, not hidden.** Every constant is classified as
@@ -187,7 +187,7 @@ SOURCED, DERIVED, INDUSTRY, ASSUMPTION, DESIGN or MODELLED in
 [`docs/DATA_PROVENANCE.md`](docs/DATA_PROVENANCE.md). That document also records
 the unresolved 117,000 ha vs 219,000 ha conflict in the public sources.
 
-**No relationship with Baladna — yet.** This is an independent case study, not a
+**No relationship with Baladna, yet.** This is an independent case study, not a
 partnership, pilot or endorsement. Baladna is the target we are building toward:
 the tool boundary in `agent/src/aidustrial/tools/sensors.py` is the seam where
 their real telemetry would connect, and integrating it with them is the
@@ -217,7 +217,7 @@ not a fan-out. Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
   Flash for prose; OpenCode coding agents for implementation assistance
 - **Data:** a deterministic digital twin seeded from published figures and
   domain literature, plus SQLite (stdlib `sqlite3`) for the decision ledger,
-  work orders, chat history and the FTS5 retrieval index — one file, no server
+  work orders, chat history and the FTS5 retrieval index, one file, no server
   process, no vector store
 
 ## Who built what
@@ -238,7 +238,7 @@ Built for **Thirduni Cohort 1, October 2026**.
 
 The repository includes a one-container build for deploying the app on a single
 public URL ([`docs/DEPLOY.md`](docs/DEPLOY.md)). The three-minute screen-recorded
-walkthrough — the primary demo for judging — is scripted in
+walkthrough, the primary demo for judging, is scripted in
 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
 
 The eight-item submission pack, including the 150-word description, team roles,
@@ -248,7 +248,7 @@ tech stack and what-happens-next, is in
 ## What happens next
 
 In the next three months I would replace the simulated sensor gateway with one
-real site's telemetry — pivot, collar, silo and tanker feeds — and run a
+real site's telemetry, pivot, collar, silo and tanker feeds, and run a
 two-week shadow-mode pilot with an Algerian operator. I would publish the
 risk-scoring and provenance method so decisions can be audited, add a
 French/Arabic operator view, and keep the tool boundary open for other
@@ -267,13 +267,13 @@ operations director trusts enough to use on a real shift.
 
 ## Docs
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layer-by-layer design
-- [`docs/DATA_PROVENANCE.md`](docs/DATA_PROVENANCE.md) — sourced vs assumed
-- [`docs/PITCH.md`](docs/PITCH.md) — the longer project narrative
-- [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) — the three-minute walkthrough
-- [`docs/SUBMISSION.md`](docs/SUBMISSION.md) — the eight-item Thirduni pack
-- [`docs/DEPLOY.md`](docs/DEPLOY.md) — one-container deployment
-- [`AGENT.md`](AGENT.md) — working notes and the build history
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), layer-by-layer design
+- [`docs/DATA_PROVENANCE.md`](docs/DATA_PROVENANCE.md), sourced vs assumed
+- [`docs/PITCH.md`](docs/PITCH.md), the longer project narrative
+- [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md), the three-minute walkthrough
+- [`docs/SUBMISSION.md`](docs/SUBMISSION.md), the eight-item Thirduni pack
+- [`docs/DEPLOY.md`](docs/DEPLOY.md), one-container deployment
+- [`AGENT.md`](AGENT.md), working notes and the build history
 
 ## Licence and copyright
 
@@ -289,7 +289,7 @@ without written permission.
 The name "Aidustrial", the logo, the documentation, the pitch deck and the demo
 video are copyright © 2026 Mohammed Boukaba. **All rights reserved.**
 
-Third-party libraries keep their own licences — see `agent/pyproject.toml`,
+Third-party libraries keep their own licences, see `agent/pyproject.toml`,
 `agent/uv.lock` and `dashboard/package.json`.
 
 Permissions and enquiries: [mohammed@pullrun.dev](mailto:mohammed@pullrun.dev)

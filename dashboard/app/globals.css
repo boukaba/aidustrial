@@ -19,7 +19,7 @@ body {
   font-feature-settings: "tnum" 1, "cv05" 1;
   background-color: #04060a;
   background-image:
-    /* the slow drifting field grid — the "this place is instrumented" cue */
+    /* the slow drifting field grid, the "this place is instrumented" cue */
     linear-gradient(rgba(56, 189, 248, 0.028) 1px, transparent 1px),
     linear-gradient(90deg, rgba(56, 189, 248, 0.028) 1px, transparent 1px),
     /* two deep colour pools so the ground is never flat */

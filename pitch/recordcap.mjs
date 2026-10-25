@@ -130,7 +130,7 @@ async function act(page, step) {
 
   if (step.do === 'chat') {
     // Open a specialist's drawer, type a question with the real keyboard, and
-    // send it — all on screen, so the video shows the feature being used
+    // send it, all on screen, so the video shows the feature being used
     // rather than a still of it.
     const card = page.locator('article').filter({ hasText: step.agentLabel }).first();
     const askBtn = card.getByRole('button', { name: /^ask$/i }).first();

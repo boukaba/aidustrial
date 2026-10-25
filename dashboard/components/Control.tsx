@@ -4,8 +4,21 @@ import { useEffect, useRef, useState } from "react";
 import { agent } from "@/lib/identity";
 import type { StreamMessage, ActionPayload } from "@/lib/types";
 
-const API =
-  process.env.NEXT_PUBLIC_AGENT_API ?? "http://localhost:8781";
+const CONFIGURED_API = process.env.NEXT_PUBLIC_AGENT_API;
+
+/**
+ * In development the dashboard runs on :3010 and the agent service on :8781.
+ * In the single-container production build both are served from one origin,
+ * so an empty `NEXT_PUBLIC_AGENT_API` means "same origin" rather than a
+ * hard-coded localhost URL that a judge's browser cannot reach.
+ */
+function apiBase(): string {
+  if (CONFIGURED_API) return CONFIGURED_API;
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    return window.location.origin;
+  }
+  return "http://localhost:8781";
+}
 
 export function useFarmStream(threadId = "demo", speed = 14) {
   const [data, setData] = useState<StreamMessage | null>(null);
@@ -31,7 +44,7 @@ export function useFarmStream(threadId = "demo", speed = 14) {
 
     const connect = () => {
       if (closed) return;
-      const url = `${API.replace(/^http/, "ws")}/ws/stream?thread_id=${threadId}&speed=${speedState}`;
+      const url = `${apiBase().replace(/^http/, "ws")}/ws/stream?thread_id=${threadId}&speed=${speedState}`;
       ws = new WebSocket(url);
 
       ws.onopen = () => {
@@ -66,7 +79,7 @@ export function useFarmStream(threadId = "demo", speed = 14) {
   }, [threadId, speedState, attempt]);
 
   const decide = async (approved: boolean, note = "") => {
-    await fetch(`${API}/api/decide/${threadId}`, {
+    await fetch(`${apiBase()}/api/decide/${threadId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ approved, note }),
@@ -75,7 +88,7 @@ export function useFarmStream(threadId = "demo", speed = 14) {
 
   const setSpeed = async (v: number) => {
     setSpeedState(v);
-    await fetch(`${API}/api/session/${threadId}/speed`, {
+    await fetch(`${apiBase()}/api/session/${threadId}/speed`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ speed: v }),
@@ -182,16 +195,16 @@ export function DecisionStrip({
           </span>
         </span>
 
-        <div className="relative min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold leading-tight text-slate-50">
+        <div className="relative min-w-[180px] flex-1">
+          <p className="line-clamp-2 text-[13px] font-semibold leading-tight text-slate-50">
             {plainHeadline(action)}
           </p>
-          <p className="truncate text-[10.5px] text-slate-500">
+          <p className="line-clamp-1 text-[10.5px] text-slate-500">
             suggested by the {who.name.toLowerCase()} · needs your decision
           </p>
         </div>
 
-        <div className="relative flex shrink-0 items-center gap-1.5">
+        <div className="relative ml-auto flex shrink-0 items-center gap-1.5">
           <button
             disabled={busy}
             onClick={() => onDecide(true, "")}
@@ -381,7 +394,7 @@ function plainIf(a: ActionPayload): string {
     case "enable_misters":
       return "Cooling starts in the barns most under heat stress. Those cows should eat and milk normally again within hours.";
     case "start_pivot":
-      return "The listed fields start receiving water and the crop resumes growing. Reversible — the pivots can be stopped again.";
+      return "The listed fields start receiving water and the crop resumes growing. Reversible, the pivots can be stopped again.";
     case "shed_pivot":
       return "Some fields stop irrigating to bring yearly water use back inside the sustainable limit. Those fields lose some growth.";
     case "repair_pivot":

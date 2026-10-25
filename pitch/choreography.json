@@ -302,44 +302,44 @@
           "y": 0
         },
         {
-          "at": 0.97,
+          "at": 0.92,
           "do": "move",
           "target": "deciding via"
         },
         {
-          "at": 5.62,
+          "at": 4.17,
           "do": "move",
           "target": "writing via"
         },
         {
-          "at": 11.12,
+          "at": 7.66,
           "do": "scroll",
           "dy": 200,
           "steps": 6
         },
         {
-          "at": 13.74,
+          "at": 9.12,
           "do": "move",
           "target": "The seven specialists, working"
         },
         {
-          "at": 15.5,
+          "at": 11.79,
           "do": "move",
           "target": "reading now"
         },
         {
-          "at": 19.4,
+          "at": 15.59,
           "do": "scroll",
           "dy": 220,
           "steps": 7
         },
         {
-          "at": 23.62,
+          "at": 19.89,
           "do": "move",
           "target": "decided"
         },
         {
-          "at": 28.78,
+          "at": 23.47,
           "do": "scrollTo",
           "y": 0
         }

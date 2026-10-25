@@ -89,7 +89,7 @@ export function StatStrip({ s }: { s: Summary }) {
 
   return (
     <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-      <Stat label="Air temp" value={s.temperature_c.toFixed(1)} unit="°C" sub={`RH ${s.temperature_c > 35 ? "low" : "—"}`} />
+      <Stat label="Air temp" value={s.temperature_c.toFixed(1)} unit="°C" sub={`RH ${s.temperature_c > 35 ? "low" : ", "}`} />
       <Stat
         label="Effective heat load"
         value={s.effective_heat_load.toFixed(1)}
@@ -126,7 +126,7 @@ export function HerdPanel({ p }: { p: Packet }) {
   return (
     <section className="card p-4">
       <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold text-slate-200">Herd — barn level</h2>
+        <h2 className="text-sm font-semibold text-slate-200">Herd, barn level</h2>
         <span className="label">{p.herd.head.toLocaleString()} head</span>
       </div>
       <div className="space-y-1.5">
@@ -191,7 +191,7 @@ export function WaterPanel({ p }: { p: Packet }) {
         </div>
         <Bar pct={e.aquifer_budget_used_pct} tone={over ? "bg-crit-500" : "bg-sig-500"} />
         <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-          Albien fossil aquifer — non-renewable. Judged on projected annual draw, not
+          Albien fossil aquifer, non-renewable. Judged on projected annual draw, not
           today&apos;s reading, because a single wet year cannot be recovered.
         </p>
       </div>

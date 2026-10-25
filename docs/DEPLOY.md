@@ -15,7 +15,7 @@ The deterministic rules and the human gate are the product. Do not put a
 personal API key in a public deployment just to make the screenshots look
 busier.
 
-## Option A — Render (recommended, ~10 minutes)
+## Option A, Render (recommended, ~10 minutes)
 
 1. Push the repository to a **public** GitHub repo.
 2. In Render: **New → Web Service → Build and deploy from a Git repository**.
@@ -34,7 +34,7 @@ busier.
 consider the cheapest paid instance; a cold link is the most common avoidable
 failure in the criteria.
 
-## Option B — any Docker host
+## Option B, any Docker host
 
 ```bash
 docker build -t aidustrial .
@@ -46,7 +46,7 @@ The container listens on `8080` by default and honours `$PORT`, so it works on
 Render, Fly.io, Railway, Koyeb and similar hosts. The health check is
 `GET /api/health`.
 
-## Option C — separate backend and frontend
+## Option C, separate backend and frontend
 
 If you prefer Vercel for the frontend:
 

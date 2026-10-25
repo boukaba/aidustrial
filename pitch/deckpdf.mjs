@@ -34,7 +34,7 @@ await p.pdf({
   printBackground: true,
   margin: { top: '0px', bottom: '0px', left: '0px', right: '0px' },
   // Document properties, so the deck identifies itself outside a browser tab.
-  title: 'Aidustrial — Pitch Deck',
+  title: 'Aidustrial, Pitch Deck',
   author: 'Mohammed Boukaba',
   subject:
     'An agentic operations layer for large industrial farms: seven specialist AI Agents ' +

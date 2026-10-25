@@ -40,7 +40,7 @@ export function Sidebar({
             only the circular mark fits; expanded, the full lockup. */}
         <img
           src={open ? "/aidustrial-logo.png" : "/aidustrial-mark.png"}
-          alt="Aidustrial — Ai for Industry"
+          alt="Aidustrial, Ai for Industry"
           className={open ? "h-7 w-auto shrink-0" : "h-7 w-7 shrink-0"}
         />
         {open && (

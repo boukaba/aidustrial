@@ -38,7 +38,7 @@ const STOPS: Stop[] = [
     area: null,
     title: "This is a farm in the Sahara",
     body:
-      "A 3.5 billion dollar dairy project in Adrar, Algeria. Growing its own feed, on groundwater that does not refill. The system watches all of it and asks you for a decision when something needs a human.",
+      "A simulation of a 3.5 billion dollar dairy project in Adrar, Algeria. Growing its own feed, on groundwater that does not refill. The system watches all of it and asks you for a decision when something needs a human.",
     look: "The three cards behind this dialog are the whole farm in one view: food, cows, milk.",
     live: (p) => [
       { label: "Animals on the farm", value: n(p.livestock.total_head) },
@@ -50,7 +50,7 @@ const STOPS: Stop[] = [
     area: "crop",
     title: "The farm grows its own feed",
     body:
-      "Six fields, irrigated by centre pivots. Everything the cows eat is grown here. If a field's soil water runs out the crop stops entirely — that is a permanent loss for the season, not a delay.",
+      "Six fields, irrigated by centre pivots. Everything the cows eat is grown here. If a field's soil water runs out the crop stops entirely, that is a permanent loss for the season, not a delay.",
     look: "Every number here has a plain-English explanation behind it.",
     live: (p) => {
       const driest = Math.min(...p.crop_production.fields.map((f) => f.soil_moisture_pct));
@@ -65,7 +65,7 @@ const STOPS: Stop[] = [
     area: "livestock",
     title: "Most of the herd does not pay for itself yet",
     body:
-      "This is the single most important fact about the project. The animals arriving by air from the United States are mostly heifers — they will not give milk for roughly 18 months. Until then they eat feed and water and return nothing.",
+      "This is the single most important fact about the project. The animals arriving by air from the United States are mostly heifers, they will not give milk for roughly 18 months. Until then they eat feed and water and return nothing.",
     look: "The heifer bars show how close each group is to breeding weight.",
     live: (p) => {
       const pct = (p.livestock.non_productive_head / p.livestock.total_head) * 100;
@@ -80,7 +80,7 @@ const STOPS: Stop[] = [
     area: "milk",
     title: "Volume and quality are different problems",
     body:
-      "The parlour can run flat out while the milk still fails its quality test. High cell counts come from infection in the cows, not from the plant — so the problem is reported by the milk specialist and fixed by the herd specialist.",
+      "The parlour can run flat out while the milk still fails its quality test. High cell counts come from infection in the cows, not from the plant, so the problem is reported by the milk specialist and fixed by the herd specialist.",
     look: "Watch the cold chain and the cell count separately.",
     live: (p) => {
       const m = p.milk_production;
@@ -96,7 +96,7 @@ const STOPS: Stop[] = [
     area: "infrastructure",
     title: "The real constraint is hardware, not water",
     body:
-      "It is tempting to think cooling competes with irrigation for the aquifer. The arithmetic does not support it: four misting banks draw 53 cubic metres an hour against 27,000 for the pivots. Cooling was only installed in half the barns — that is the genuine bottleneck.",
+      "It is tempting to think cooling competes with irrigation for the aquifer. The arithmetic does not support it: four misting banks draw 53 cubic metres an hour against 27,000 for the pivots. Cooling was only installed in half the barns, that is the genuine bottleneck.",
     look: "Compare the water budget against the cooling hardware.",
     live: (p) => {
       const stopped = p.environment.pivots.filter((x) => !x.running).length;
@@ -113,7 +113,7 @@ const STOPS: Stop[] = [
     title: "Seven specialists, arguing with each other",
     body:
       "Seven agents share one board. In the first round they each look at the site and post what they see. In the second round, only the agents that were actually asked something wake up and answer. That is why one decision never gets made on a single point of view.",
-    look: "Read the messages top to bottom — question, then answer.",
+    look: "Read the messages top to bottom, question, then answer.",
     live: (p) => {
       const answered = new Set(p.board.map((m) => m.in_reply_to).filter(Boolean));
       const open = p.board.filter((m) => m.expects_reply && !answered.has(m.message_id));
@@ -271,7 +271,7 @@ export function GuidedTour({
 
             {last && hasPending && (
               <p className="mt-3 rounded border border-fuchsia-500/30 bg-fuchsia-500/10 p-2.5 text-xs text-fuchsia-300">
-                A decision is waiting for you right now — close this and it is on the Decisions
+                A decision is waiting for you right now, close this and it is on the Decisions
                 screen.
               </p>
             )}

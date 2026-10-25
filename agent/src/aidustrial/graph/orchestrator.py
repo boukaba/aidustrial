@@ -204,7 +204,7 @@ def triage(state: FarmState) -> dict:
                 "orchestrator",
                 "triage",
                 (
-                    f"Waking {', '.join(focus)} — " + "; ".join(reasons)
+                    f"Waking {', '.join(focus)}, " + "; ".join(reasons)
                     if focus
                     else "All systems nominal. No specialist required."
                 ),
@@ -579,7 +579,7 @@ def human_gate(state: FarmState) -> dict:
         # cooldown window so the agent does not immediately ask again, but do
         # not touch the twin.
         world.record_rejection(top.action, top.target)
-        result = "rejected — no change"
+        result = "rejected, no change"
 
     record = {"action": top.action, "target": top.target, "result": result,
               "approved_by": "farm_director", "note": note}

@@ -75,7 +75,7 @@ export function explainSoilMoisture(pct: number): Plain {
     return {
       line: "This field has run out of water. The crop is not growing at all.",
       because:
-        "Below this point crops stop accumulating mass entirely. It is not a delay — whatever this crop was going to yield is already lost.",
+        "Below this point crops stop accumulating mass entirely. It is not a delay, whatever this crop was going to yield is already lost.",
       level: "stop",
     };
   }
@@ -124,7 +124,7 @@ export function explainAquifer(pct: number): Plain {
     return {
       line: "Water use is above what the underground supply can sustain in a year.",
       because:
-        "This water is fossil — it does not refill. Whatever is drawn now is gone permanently.",
+        "This water is fossil, it does not refill. Whatever is drawn now is gone permanently.",
       level: "stop",
     };
   }
@@ -259,7 +259,7 @@ export function explainParlour(downtimeMin: number): Plain {
     return {
       line: "Cows are waiting hours to be milked.",
       because:
-        "Not just a throughput problem — cows standing in an unshaded desert yard is the worst heat exposure on the site.",
+        "Not just a throughput problem, cows standing in an unshaded desert yard is the worst heat exposure on the site.",
       level: "stop",
     };
   }
@@ -362,16 +362,16 @@ export function milkSummary(m: {
 
 export const GLOSSARY: Record<string, string> = {
   EHL: "Effective Heat Load. How hard the heat is on a cow, combining air temperature, humidity and direct sun. Ordinary temperature alone understates it in a sunny desert.",
-  THI: "Temperature-Humidity Index. The standard heat measure, based on air and humidity. In dry desert air this reads surprisingly low — which is why we also use EHL.",
+  THI: "Temperature-Humidity Index. The standard heat measure, based on air and humidity. In dry desert air this reads surprisingly low, which is why we also use EHL.",
   "Rumination": "How long cows spend chewing each day, measured by a collar. It collapses before their body temperature does, which makes it the earliest heat warning.",
   SCC: "Somatic Cell Count. A measure of infection in the milk. High numbers mean dirty milk and a price penalty. The legal limit is 200 thousand cells per millilitre.",
-  "Aquifer": "An underground water store. The one under Adrar is fossil water — it formed thousands of years ago and does not refill.",
+  "Aquifer": "An underground water store. The one under Adrar is fossil water, it formed thousands of years ago and does not refill.",
   DM: "Dry Matter. Crop mass without the water in it. This is what the herd actually eats, so it is what gets measured.",
   Ensiling: "Storing grass or corn siloed and fermented, the way hay is stored. Preserves it for winter.",
   Misting: "Spraying fine water at cows. In dry air the water evaporates and pulls heat off the animal, which is why it works so well in a desert.",
   Holstein: "The black-and-white dairy breed. High volume but relatively heat-sensitive.",
   "Water-stress days": "Consecutive days a field went without enough water.",
-  CC: "Counting cells per millilitre — the raw number behind SCC.",
+  CC: "Counting cells per millilitre, the raw number behind SCC.",
   Fodder: "Feed grown on the farm, mainly for the cows.",
   "Non-renewable": "Cannot be replaced on any human timescale.",
   "Standing DM": "Crop that is growing in the field right now, measured without water.",

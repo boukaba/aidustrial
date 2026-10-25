@@ -92,7 +92,7 @@ The arithmetic does not support it, and we say so in the code:
 Misting is 0.2 % of pivot draw. The genuine contests are herd drinking water
 against the annual aquifer envelope, and pivot allocation across fields to keep
 projected annual draw inside budget. **Misting is constrained by hardware, not
-water** — Phase 1 installed it in only 4 of 8 barns. That turns the interesting
+water**, Phase 1 installed it in only 4 of 8 barns. That turns the interesting
 decision from a switch into an allocation, which is the better demo and the more
 honest one.
 
