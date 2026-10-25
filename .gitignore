@@ -14,31 +14,7 @@ agent/static/
 # The README uses the resized copy in docs/; keep the large working files out.
 aidustrial_logo*.png
 
-# Pitch build artefacts. The scripts, script text and deck source are tracked
-# (they are how the demo was made); the media they generate is not.
-pitch/audio/
-pitch/video/
-pitch/out/
-pitch/cap/
-pitch/node_modules/
-pitch/*.mp4
-pitch/*.pdf
-pitch/*.wav
+# Pitch build folder (not part of the product)
+pitch/
 
-# SQLite ledger written at runtime
-agent/data/
-data/
-
-# One-off capture/debug probes, not part of the pipeline
-pitch/diag*.mjs
-pitch/probe*.mjs
-pitch/uicheck*.mjs
-pitch/uidebug*.mjs
-pitch/scrape.mjs
-pitch/shot.mjs
-pitch/*.log
-pitch/*.err
-pitch/captions/
-
-# TypeScript incremental build artefact
 tsconfig.tsbuildinfo
