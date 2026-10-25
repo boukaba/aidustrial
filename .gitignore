@@ -28,3 +28,13 @@ pitch/*.wav
 # SQLite ledger written at runtime
 agent/data/
 data/
+
+# One-off capture/debug probes, not part of the pipeline
+pitch/diag*.mjs
+pitch/probe*.mjs
+pitch/uicheck*.mjs
+pitch/uidebug*.mjs
+pitch/scrape.mjs
+pitch/shot.mjs
+pitch/*.log
+pitch/*.err
