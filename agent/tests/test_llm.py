@@ -252,7 +252,10 @@ def test_trim_shrinks_nested_dicts():
 # --- cooldown dedup --------------------------------------------------------
 
 
-def test_cooldown_prevents_immediate_requeue():
+def test_cooldown_prevents_immediate_requeue(monkeypatch):
+    # enabled() is false without a local opencode server or an explicit base.
+    # This test is about the cooldown path, so it opts in explicitly.
+    monkeypatch.setenv("AIDUSTRIAL_ZEN_BASE", "http://127.0.0.1:9")
     b = Brain(allowed_actions={"enable_misters"})
     b._results["veterinarian"] = _reasoning(hash="old")
     b._last_call["veterinarian"] = 1e12  # pretend the call just happened

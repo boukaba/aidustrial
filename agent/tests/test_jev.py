@@ -283,7 +283,10 @@ def test_quiet_decision_produces_no_findings_and_no_actions():
 # --- the brain's plumbing ---------------------------------------------------
 
 
-def test_request_is_non_blocking_and_dedupes():
+def test_request_is_non_blocking_and_dedupes(monkeypatch):
+    # enabled() needs a credential. This test is about the cache path, so it
+    # supplies one rather than depending on the developer's ~/.local store.
+    monkeypatch.setenv("OPENCODE_API_KEY", "test-key")
     b = JevBrain(allowed_actions={"enable_misters"})
     b._results["veterinarian"] = _decision()
     b._last_call["veterinarian"] = __import__("time").time()
