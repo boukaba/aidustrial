@@ -181,7 +181,7 @@ def main() -> None:
             "scale=1920:1080:flags=lanczos,"
             f"ass=captions/{bid}.ass",
             "-map", "0:v:0", "-map", "1:a:0",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "14",
             "-pix_fmt", "yuv420p", "-r", "30",
             "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
             str(dst),
@@ -198,7 +198,7 @@ def main() -> None:
             "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
             "-t", "4", "-r", "30",
             "-vf", "scale=1920:1080:flags=lanczos,format=yuv420p",
-            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "14",
             "-c:a", "aac", "-b:a", "192k", "-shortest",
             str(card),
         ])
@@ -214,9 +214,10 @@ def main() -> None:
 
     _run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0",
           "-i", "_concat.txt", "-c", "copy",
-          # use_metadata_tags keeps the non-standard keys (description,
-          # synopsis, keywords) instead of silently dropping them.
-          "-movflags", "use_metadata_tags+faststart",
+          # faststart only moves the index ahead of the media; it does not
+          # touch the stream. Standard iTunes atoms only -- use_metadata_tags
+          # writes a non-standard `meta` box for tags YouTube ignores.
+          "-movflags", "+faststart",
           *meta_args, str(final)], cwd=OUT)
     concat.unlink()
     print(f"[asm] final: {final}  ({_duration(final):.2f}s)")
