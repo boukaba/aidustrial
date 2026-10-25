@@ -192,14 +192,26 @@ deterministic rules and every proposal reaches a human.
 | `AIDUSTRIAL_JEV_MODEL` | `jev-1.13-free` | Model id. |
 | `AIDUSTRIAL_JEV_BASE` | `https://opencode.ai/zen/v1/systemone` | Endpoint. |
 
-**Prose track.** Writes the plain-language explanation.
+**Prose track.** Writes the plain-language explanation. Two interchangeable
+backends, selected purely by configuration: set `AIDUSTRIAL_LLM_BASE` and
+`AIDUSTRIAL_LLM_KEY` and it speaks to any OpenAI-compatible endpoint; leave them
+unset and it drives a local `opencode serve`. No code differs between them.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `AIDUSTRIAL_LLM` | on when a local server is reachable | Set to `off` to disable the track. |
-| `AIDUSTRIAL_ZEN_BASE` | `http://127.0.0.1:4814` | A local `opencode serve`. Setting it explicitly counts as opting in. |
-| `AIDUSTRIAL_ZEN_MODEL` | `deepseek-v4.1-flash` | Model id. |
+| `AIDUSTRIAL_LLM` | on when either backend is configured | Set to `off` to disable the track. |
+| `AIDUSTRIAL_LLM_BASE` | unset | OpenAI-compatible base, e.g. `https://api.openai.com/v1`, `https://api.groq.com/openai/v1`, `http://localhost:11434/v1`. Setting this and a key selects this backend. |
+| `AIDUSTRIAL_LLM_KEY` | unset | Bearer token for that endpoint. |
+| `AIDUSTRIAL_LLM_MODEL` | `gpt-4o-mini` | Model id. |
+| `AIDUSTRIAL_LLM_MAX_TOKENS` | `600` | Hard cap per completion, so a stray prompt cannot run up a bill. |
+| `AIDUSTRIAL_ZEN_BASE` | `http://127.0.0.1:4814` | A local `opencode serve`. Used only when the API pair above is unset. |
+| `AIDUSTRIAL_ZEN_MODEL` | `deepseek-v4.1-flash` | Model id on that backend. |
 | `AIDUSTRIAL_ZEN_PROVIDER` | `opencode-go` | Provider id inside OpenCode. |
+
+**Which to choose.** The OpenAI-compatible path needs no local process, so it is
+the only one that fits a 512 MB instance with reasoning enabled; the OpenCode
+path adds roughly 365 MB for its local server. The header always names the model
+that actually answered.
 
 Both tracks are non-blocking: a slow or missing model never stalls the
 simulation, it only means a verdict arrives later or not at all. Both obey one

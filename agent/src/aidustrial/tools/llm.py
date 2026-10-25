@@ -85,6 +85,27 @@ ZEN_SYSTEM = (
     "or explain what you would do next."
 )
 
+#: Optional OpenAI-compatible provider. When both BASE and KEY are set the prose
+#: track talks plain HTTPS instead of spawning a local `opencode serve`, which
+#: removes a 365 MB Node process from the hosting bill and lets the reasoning
+#: layer run on a 512 MB instance. Nothing but these variables chooses the path:
+#: no code is different, and switching back is unsetting them.
+API_BASE = os.getenv("AIDUSTRIAL_LLM_BASE", "").strip().rstrip("/")
+API_KEY = os.getenv("AIDUSTRIAL_LLM_KEY", "").strip()
+API_MODEL = os.getenv("AIDUSTRIAL_LLM_MODEL", "").strip() or "gpt-4o-mini"
+#: Hard cap on the completion, so a stray prompt cannot produce a long bill.
+API_MAX_TOKENS = int(os.getenv("AIDUSTRIAL_LLM_MAX_TOKENS", "600") or 600)
+
+
+def _api_configured() -> bool:
+    """True when an OpenAI-compatible endpoint is fully configured."""
+    return bool(API_BASE and API_KEY)
+
+
+def active_model() -> str:
+    """The model id the prose track will use, for the header and the ledger."""
+    return API_MODEL if _api_configured() else ZEN_MODEL
+
 
 def _has_opencode_credentials() -> bool:
     """True when the local OpenCode client has a usable credential.
@@ -103,6 +124,9 @@ def _has_opencode_credentials() -> bool:
 def _enabled() -> bool:
     if os.getenv("AIDUSTRIAL_LLM", "").strip().lower() in {"off", "0", "false", "no"}:
         return False
+    # An OpenAI-compatible endpoint needs no local process at all.
+    if _api_configured():
+        return True
     # An explicitly configured base URL may point at a remote/other server; in
     # that case the caller has opted in and we do not require a local CLI.
     if os.getenv("AIDUSTRIAL_ZEN_BASE", "").strip():
@@ -113,7 +137,11 @@ def _enabled() -> bool:
 
 
 class _Zen:
-    """Client for a local `opencode serve`, used only when Token Harbor is dry.
+    """The prose provider, chosen entirely by configuration.
+
+    Two backends, one entry point. With `AIDUSTRIAL_LLM_BASE` and
+    `AIDUSTRIAL_LLM_KEY` set it speaks plain OpenAI-compatible HTTPS; otherwise
+    it drives a local `opencode serve`. Callers never know which.
 
     Each call gets its own session and deletes it afterwards. Reusing one would
     accumulate every prior turn into the prompt, so the ~8k token floor would
@@ -166,6 +194,38 @@ class _Zen:
             return False
 
     async def complete(self, system: str, user: str) -> str:
+        """Answer from whichever provider the environment selected."""
+        if _api_configured():
+            return await self._http(system, user)
+        return await self._local(system, user)
+
+    async def _http(self, system: str, user: str) -> str:
+        """Plain OpenAI-compatible /chat/completions. No local process."""
+        body = {
+            "model": API_MODEL,
+            "temperature": 0.2,
+            "max_tokens": API_MAX_TOKENS,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            # Most compatible servers support this; the prompt already asks for
+            # JSON and _extract_json repairs whatever comes back regardless.
+            "response_format": {"type": "json_object"},
+        }
+        headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
+        async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as c:
+            resp = await c.post(f"{API_BASE}/chat/completions", json=body, headers=headers)
+            if resp.status_code == 400 and "response_format" in resp.text.lower():
+                # Some servers reject the json_object hint outright.
+                body.pop("response_format", None)
+                resp = await c.post(f"{API_BASE}/chat/completions", json=body, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        return (data["choices"][0]["message"]["content"] or "").strip()
+
+    async def _local(self, system: str, user: str) -> str:
+        """The OpenCode path: a throwaway session on a local `opencode serve`."""
         await self._ensure()
         async with httpx.AsyncClient(timeout=CALL_TIMEOUT_S) as c:
             created = await c.post(f"{ZEN_BASE}/session", json={"title": "prose"})
@@ -254,7 +314,8 @@ class Brain:
         self.last_at = 0.0
         self._trip_at = 0.0
         self._consecutive = 0
-        self.model = ZEN_MODEL
+        #: The model id as configured, so the header names the real backend.
+        self.model = active_model()
         #: Which model actually served the most recent verdict. Differs from
         #: `self.model` when `AIDUSTRIAL_ZEN_MODEL` is overridden.
         self.provider = ""
@@ -303,7 +364,7 @@ class Brain:
         with self._lock:
             return {
                 "enabled": self.enabled,
-                "model": self.model if self.enabled else "",
+                "model": active_model() if self.enabled else "",
                 "in_flight": len(self._inflight),
                 "queued": len(self._pending),
                 "calls": self.calls,
@@ -379,7 +440,7 @@ class Brain:
     async def _complete(self, payload: dict) -> str:
         if time.time() < self._trip_at:
             raise RuntimeError("circuit open after repeated failures")
-        self.provider = ZEN_MODEL
+        self.provider = active_model()
         return await _ZEN_CLIENT.complete(ZEN_SYSTEM, payload["user"])
 
     # -- validation ------------------------------------------------------

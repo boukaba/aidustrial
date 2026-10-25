@@ -7,10 +7,24 @@ services:
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
-      # The container ships without OpenCode credentials, so the public demo
-      # runs on the deterministic rules and the human gate. Do not fake the
-      # reasoning layer on a public URL.
+      # The container ships without credentials, so the public demo runs on the
+      # deterministic rules and the human gate. Do not fake the reasoning layer
+      # on a public URL.
       - key: AIDUSTRIAL_LLM
         value: "off"
       - key: AIDUSTRIAL_JEV
         value: "off"
+
+      # To run the prose track live instead, drop the AIDUSTRIAL_LLM line above
+      # and set these. They talk plain HTTPS, so no local process is needed and
+      # the service still fits comfortably in 512 MB -- unlike the OpenCode
+      # backend, which adds ~365 MB for its local server.
+      #
+      # - key: AIDUSTRIAL_LLM_BASE
+      #   value: "https://api.openai.com/v1"
+      # - key: AIDUSTRIAL_LLM_KEY
+      #   sync: false          # set in the dashboard, never in this file
+      # - key: AIDUSTRIAL_LLM_MODEL
+      #   value: "gpt-4o-mini"
+      # - key: AIDUSTRIAL_LLM_MAX_TOKENS
+      #   value: "600"

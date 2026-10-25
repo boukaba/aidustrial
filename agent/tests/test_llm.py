@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 
 from aidustrial.agents.reasoning import _trim, apply_reasoning
+from aidustrial.tools import llm
 from aidustrial.tools.actions import Action, Finding
 from aidustrial.tools.llm import (
     BRAIN,
@@ -280,3 +281,55 @@ def test_disabled_brain_ignores_requests(monkeypatch):
     b = Brain()
     b.request("veterinarian", {"system": "s", "user": "u"}, "h")
     assert "veterinarian" not in b._pending
+
+
+# --- provider selection -----------------------------------------------------
+#
+# The prose track has two backends and nothing but environment variables chooses
+# between them. These pin the switch so a deployment can move to an
+# OpenAI-compatible endpoint without touching code, and back again.
+
+
+def test_api_provider_is_off_by_default(monkeypatch):
+    monkeypatch.setattr(llm, "API_BASE", "")
+    monkeypatch.setattr(llm, "API_KEY", "")
+    assert llm._api_configured() is False
+
+
+def test_api_provider_needs_both_base_and_key(monkeypatch):
+    monkeypatch.setattr(llm, "API_BASE", "https://api.example.com/v1")
+    monkeypatch.setattr(llm, "API_KEY", "")
+    assert llm._api_configured() is False
+
+    monkeypatch.setattr(llm, "API_KEY", "sk-test")
+    assert llm._api_configured() is True
+
+
+def test_api_config_enables_the_track_without_opencode(monkeypatch):
+    """A clean container with only an API key must report the track as live."""
+    monkeypatch.delenv("AIDUSTRIAL_LLM", raising=False)
+    monkeypatch.delenv("AIDUSTRIAL_ZEN_BASE", raising=False)
+    monkeypatch.setenv("AIDUSTRIAL_LLM_BASE", "https://api.example.com/v1")
+    monkeypatch.setattr(llm, "API_BASE", "https://api.example.com/v1")
+    monkeypatch.setattr(llm, "API_KEY", "sk-test")
+    monkeypatch.setattr(llm, "_has_opencode_credentials", lambda: False)
+
+    assert llm._enabled() is True
+
+
+def test_off_switch_beats_a_configured_api(monkeypatch):
+    monkeypatch.setattr(llm, "API_BASE", "https://api.example.com/v1")
+    monkeypatch.setattr(llm, "API_KEY", "sk-test")
+    monkeypatch.setenv("AIDUSTRIAL_LLM", "off")
+    assert llm._enabled() is False
+
+
+def test_active_model_reports_the_backend_in_use(monkeypatch):
+    monkeypatch.setattr(llm, "API_BASE", "https://api.example.com/v1")
+    monkeypatch.setattr(llm, "API_KEY", "sk-test")
+    monkeypatch.setattr(llm, "API_MODEL", "gpt-4o-mini")
+    monkeypatch.setattr(llm, "ZEN_MODEL", "deepseek-v4.1-flash")
+    assert llm.active_model() == "gpt-4o-mini"
+
+    monkeypatch.setattr(llm, "API_KEY", "")
+    assert llm.active_model() == "deepseek-v4.1-flash"
