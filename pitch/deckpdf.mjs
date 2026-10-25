@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
@@ -32,6 +33,18 @@ await p.pdf({
   height: '720px',
   printBackground: true,
   margin: { top: '0px', bottom: '0px', left: '0px', right: '0px' },
+  // Document properties, so the deck identifies itself outside a browser tab.
+  title: 'Aidustrial — Pitch Deck',
+  author: 'Mohammed Boukaba',
+  subject:
+    'An agentic operations layer for large industrial farms: seven specialist AI Agents ' +
+    'working 24/7, escalating consequential decisions to humans.',
+  keywords: 'Aidustrial, AI Agents, human-in-the-loop, digital twin, RAG, Baladna, Adrar, Thirduni',
+  creator: 'Aidustrial',
 });
 await b.close();
+
+// Chromium drops the author/subject options, so stamp them on the file. Run as
+// part of the build so a re-render cannot silently lose the document metadata.
+execFileSync('python3', [join(ROOT, 'pdfmeta.py'), OUT], { stdio: 'inherit' });
 console.log(`pdf written: ${OUT} (${rows.length} slides)`);
