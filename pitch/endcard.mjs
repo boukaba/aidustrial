@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
+const ROOT = fileURLToPath(new URL('.', import.meta.url));
+const b = await chromium.launch({ headless: true });
+const p = await b.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
+await p.goto(`file://${join(ROOT, 'endcard.html')}`, { waitUntil: 'networkidle' });
+await p.waitForTimeout(2200);
+await p.screenshot({ path: join(ROOT, 'endcard.png') });
+await b.close();
+console.log('endcard.png written');

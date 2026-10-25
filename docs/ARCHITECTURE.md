@@ -202,3 +202,6 @@ rather than rubber-stamp:
 
 Nothing auto-executes above the ceiling. The director can approve or reject with
 a note, and both are recorded in the audit trail.
+---
+
+© 2026 Mohammed Boukaba. All rights reserved. · [mohammed@pullrun.dev](mailto:mohammed@pullrun.dev)

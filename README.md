@@ -274,6 +274,12 @@ operations director trusts enough to use on a real shift.
 - [`docs/DEPLOY.md`](docs/DEPLOY.md) — one-container deployment
 - [`AGENT.md`](AGENT.md) — working notes and the build history
 
-## License
+## Licence and copyright
 
-MIT. See [`LICENSE`](LICENSE).
+**Source code:** MIT. See [`LICENSE`](LICENSE).
+
+**Everything else** — the name "Aidustrial", the logo, the documentation, the
+pitch deck and the demo video — copyright © 2026 Mohammed Boukaba.
+**All rights reserved.**
+
+Contact: [mohammed@pullrun.dev](mailto:mohammed@pullrun.dev)

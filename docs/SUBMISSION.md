@@ -162,3 +162,7 @@ The next step is a real site, not another prototype.
       2026; do not claim otherwise.
 - [ ] Submit before **31 October, 23:59 Algiers time**. Do not leave the upload
       to the final evening.
+
+---
+
+© 2026 Mohammed Boukaba. All rights reserved. · [mohammed@pullrun.dev](mailto:mohammed@pullrun.dev)

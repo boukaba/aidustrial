@@ -18,6 +18,9 @@ ROOT = Path(__file__).parent
 AUDIO = ROOT / "audio"
 OUT = ROOT / "out"
 CAPS = ROOT / "captions"
+#: Closing card: logo, creator and the copyright notice. Rendered from
+#: endcard.html so the notice travels with the file, not only the repo.
+ENDCARD = ROOT / "endcard.png"
 
 #: The Homebrew ffmpeg here is built without libass, so it has no `ass`,
 #: `subtitles` or `drawtext` filter at all. imageio-ffmpeg ships a full build
@@ -144,6 +147,22 @@ def main() -> None:
         ], cwd=ROOT)
         beat_files.append(dst)
         print(f"[asm] {bid:10s} {beat_len:5.2f}s  -> {dst.name}", flush=True)
+
+    # End card, as a still with silence, so the copyright is in the video.
+    if ENDCARD.exists():
+        card = OUT / "_endcard.mp4"
+        _run([
+            FFMPEG, "-v", "error", "-y",
+            "-loop", "1", "-i", str(ENDCARD),
+            "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+            "-t", "4", "-r", "30",
+            "-vf", "scale=1920:1080:flags=lanczos,format=yuv420p",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-c:a", "aac", "-b:a", "192k", "-shortest",
+            str(card),
+        ])
+        beat_files.append(card)
+        print(f"[asm] endcard    4.00s  -> {card.name}", flush=True)
 
     concat = OUT / "_concat.txt"
     concat.write_text("".join(f"file '{p.name}'\n" for p in beat_files))

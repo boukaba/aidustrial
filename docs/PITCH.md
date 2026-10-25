@@ -1,142 +1,157 @@
-# aidustrial — pitch
+# Aidustrial
 
-**One line:** An agentic operations layer for industrial agro-complexes.
-Built around the published parameters of the Baladna Algeria mega-dairy in Adrar.
+### The agentic operations layer for industrial agro-complexes
 
-> **Relationship:** we have none. Not a partner, not engaged, no contact with
-> Baladna. The project was entirely imagined around that site's real, public
-> data and numbers, because its constraints are the clearest demonstration of
-> the problem. The architecture is built to be integrated there in full if a
-> partnership ever becomes real — the tool boundary is the seam.
+A working prototype, dimensioned around the **Baladna Algeria** mega-dairy in
+Adrar, Algerian Sahara — USD 3.5 billion, 270,000 head of Holstein across
+117,000 hectares, targeting roughly half of Algeria's national powdered-milk
+demand. Every parameter is either taken from published figures or explicitly
+labelled as an assumption; the full register is in
+[`DATA_PROVENANCE.md`](DATA_PROVENANCE.md). This is an independent case study:
+I have no relationship with Baladna and no access to their telemetry. The site
+was chosen because its constraints are the clearest demonstration of the problem
+this solves.
+
+---
+
+## Project description
+
+**Aidustrial is a working prototype of an agentic operations layer for a large
+industrial operation — and it makes every agent stop and ask a person before
+anything consequential happens.**
+
+It is not a dashboard, and it is not a chatbot bolted onto telemetry. It is
+seven specialist agents, each owning one domain of the operation — feed, water,
+herd health, calving, milking, machinery, supply — reading a **simulated**
+digital twin of the site. They read continuously, and when the reasoning backend
+is configured they explain what they see in plain language. Every consequential
+proposal is held at a gate until a person says yes or no.
+
+The simulated twin behind it is dimensioned from published data: 270,000 head,
+51,548 animals modelled at granular state, an irrigation programme drawing from
+the Albien fossil aquifer that never refills, misting hardware in 4 of 8 barns,
+a fodder programme that needs a full growing season before the herd arrives.
 
 ---
 
 ## The problem
 
-The Baladna Algeria project is the largest integrated dairy development anywhere:
-USD 3.5 billion, 270,000 head of Holstein across 117,000 hectares of Algerian
-Sahara, target of ~50% of Algeria's national powdered-milk demand.
+**A 270,000-cow operation in the Sahara will produce more telemetry than any
+human team can watch — and the failures that matter are not sensor failures,
+they are coordination failures.**
 
-It is also, right now, a construction site with an impossible operating problem
-sitting on top of it.
+Consider what is actually running at once. Feed stocks and fodder growth. An
+aquifer that does not refill, at 2.5 to 4 billion cubic metres a year at full
+build-out. Herd health across 51,000 animals. A milking line where every minute
+of delay costs milk for an entire lactation. Six irrigation pivots, blocked
+nozzles, bearings running hot. A supply chain bringing animals in by air.
 
-**270,000 cows in a desert.** Air temperature reaches 43 °C. The herd depends on
-irrigation that draws from the **Albien, a non-renewable fossil aquifer**, at a
-volume the published analysis puts between 2.5 and 4 billion m³ a year at full
-build-out. Phase 1 has misting hardware in only **4 of 8 barns** — so when heat
-arrives, nobody can cool everybody, and someone has to decide who goes without.
+Each of those is somebody's entire job. The moment two of them interact — a
+drying field is a feed problem, a herd problem *and* a milk problem — nobody
+holds the whole picture.
 
-Meanwhile the first 30,000 cows arrive **by air** from nine US states starting
-November 2026, to be fed by a fodder programme that needs a full growing season.
-The herd lands before its feed does.
+The obvious answer is AI. But the obvious AI answer is unacceptable here, for
+three reasons:
 
-This is not a problem that scales linearly with headcount. It is a coordination
-problem, and coordination problems are exactly what agentic systems are for.
-
-## Why the existing answer does not work
-
-Operations software assumes telemetry exists. In Adrar it does not — no collars,
-no parlour data, no silo load cells, no pivot telemetry. And by the time it does,
-270,000 animals across three hubs on a contested aquifer will not fit on one
-operator's screen.
-
-Three things follow, and they are the product:
-
-1. **The highest-value deployment window is before the first animal arrives.**
-   Civil works are done, 186 drilling permits are issued, and there is no herd
-   operations to disturb. In that window agents do not just react — they plan
-   water allocation, feed inventory and capacity.
-2. **The scarce resource must be allocated by a human.** When cooling exists for
-   four barns and demand is eight, that is a judgement about animal welfare and
-   commercial exposure. An agent can rank barns by projected harm and show its
-   reasoning; it should not make the call silently.
-3. **Everything consequential must be explainable.** A director who cannot see
-   *why* will start clicking Approve without reading, and the entire
-   human-in-the-loop premise collapses.
-
-## What we built
-
-Four layers, and the seams between them are the point.
-
-**Layer 1 — Sensory Cortex.** A tool boundary. Agents never touch the simulation
-internals; they call telemetry, veterinary, asset and logistics tools. This is
-the only module that changes when the twin is replaced by real Valmont pivot
-telemetry, smart collars, parlour yield systems, silo load cells and well meters.
-
-**Layer 2 — The swarm.** An agronomist who judges irrigation against projected
-*annual* aquifer draw rather than today's soil moisture. A veterinarian who acts
-on rumination, because rumination collapses hours before core temperature does.
-A maintenance agent that reads vibration as an early warning. A logistics agent
-that owns the airlift-versus-fodder gap. Narrow mandates, explicit escalation
-rules, bounded memory.
-
-**Layer 3 — The orchestrator.** A LangGraph state machine that routes between
-them and owns the gate. It does no work itself. A veterinary finding does not
-move irrigation by itself — the agronomist has to say whether water can be
-reallocated. That cross-consult is what makes the swarm a swarm rather than four
-dashboards.
-
-**Layer 4 — The Command Center.** When the swarm wants something consequential
-the graph **suspends** — LangGraph's `interrupt()`, a real checkpoint, not a
-polling loop — and the Farm Director gets the rationale, the blast radius, the
-cost of inaction, the itemised risk factors, the evidence values, and risk and
-urgency as separate scored axes. Approve or reject, with a note. Both recorded.
-
-## The demo, in five minutes
-
-The session opens at **Day 3, midday**. A pump has cavitated at well-field 2 and
-PIVOT-3 is running with 14 blocked nozzles and climbing bearing temperature.
-
-| Beat | What happens |
-|---|---|
-| Day 3 | The agronomist wakes on six fields at wilting point. Six identical prompts would be absurd, so they are batched into **one** decision. |
-| Day 4 | A heatwave lands. Effective heat load crosses into the moderate band. The veterinarian wakes, ranks all eight barns by rumination deficit, and finds only four have misting hardware. |
-| Day 4 | The gate asks the director to allocate cooling to the two worst-hit barns *that can be cooled* — and separately flags the three worst barns that cannot, with a load-shedding option. |
-| Every tick | The maintenance agent reads PIVOT-1's vibration as an early failure signature, hours before its bearing temperature would justify an alarm. |
-
-The point of the demo is not the alerts. It is that **the alerts are arguable** —
-you can see the evidence, the reasoning and the tradeoff, and disagree.
-
-## Two things we had to be honest about
-
-**The data is simulated, and we say so on the dashboard footer.** The Adrar site
-has no herd and no telemetry. Every parameter is classified as sourced, derived,
-industry-standard, assumption or modelled, with the source named. The
-assumption most worth arguing with — the exposure-weighted radiant-load term —
-is called out explicitly.
-
-**We removed a claim that would not survive scrutiny.** The intuitive story is
-"cooling water competes with irrigation for the aquifer." The arithmetic does not
-support it: four misting banks draw 53 m³/h against 27,143 m³/h for six pivots.
-The real constraint on cooling is hardware, not water. Correcting this turned a
-switch into an allocation — a harder problem, and a far better one.
-
-## Where it goes
-
-aidustrial is not a dairy product. The pattern — contested resource, scarce
-hardware, specialist agents, human owns the irreversible call — generalises to
-any large industrial agro-complex: irrigation districts, grain handling, cold
-chain, mining water, chemical processing.
-
-The twin is disposable. The tool boundary, the specialist/arbitrator split, and
-the gate policy are the asset.
+1. **It is opaque.** If a model quietly decides that Barn 6 goes without cooling
+   today, you cannot audit that decision, and you cannot reverse it.
+2. **It is sycophantic.** A model that is free to set its own risk score is free
+   to lower it and slip past any gate you build.
+3. **It invents provenance.** A number without a source is a rumour. In an
+   operation where water comes from fossil aquifers rather than rainfall, the
+   *difference* matters more than the number.
 
 ---
 
-## Proof
+## The solution
 
-```bash
-cd agent && uv run pytest tests/ -q     # 23 passing
-```
+**Aidustrial gives the operation autonomy where it is safe and a hard human gate
+where it is not — and it makes both auditable.**
 
-The suite guards the properties that make this defensible rather than
-decorative:
+### Seven specialists, two reasoning tracks
 
-- the diurnal curve is a real 24-hour cycle, not a partial-span artifact
-- dry-arid heat is genuinely **less** lethal than humid heat, and radiant load is
-  what makes Adrar hard anyway
-- misting is scarce hardware, not scarce water
-- agents never re-propose an action already satisfied
-- risk and urgency remain independent axes
-- the graph halts rather than auto-approving
-- rejections are recorded and change nothing
+Each agent owns a domain and reads it continuously through a tool layer, not a
+static dashboard. They are not threshold alarms. When the reasoning backend is
+configured, two models run the work in parallel, on different jobs:
+
+- **One decides.** It asks typed questions — is this warranted, which action from
+  a closed vocabulary, how urgent — and answers in **about a second**, with the
+  odds it was working from attached to the verdict. ~0.9s measured on the
+  development machine.
+- **One writes.** It produces the plain-language explanation a manager can read
+  aloud and argue with, sourced from the same readings.
+
+Without credentials, both tracks fall back to the deterministic rules. The rules
+are the floor, and the human gate works either way.
+
+### The model never sets the risk
+
+This is the core of the design. **Risk is computed by deterministic scoring
+written for this system, never by a model.** A model may escalate a finding's
+severity or urgency. It may never de-escalate past a rule. A model that could
+raise its own risk score could lower it to slip past the gate — so it never gets
+the number. The model proposes; the scorer decides.
+
+Every consequential proposal carries a deterministic risk score. Anything above
+the ceiling for automatic approval — 40 — is *guaranteed* to face a human.
+
+### Nothing consequential happens without a person
+
+Every such action suspends the system and waits. The director sees the evidence,
+the blast radius of saying yes, and the cost of doing nothing. Then approves or
+rejects. The action vocabulary is closed: an unrecognised action is dropped, not
+passed through. A hallucinated `dispatch_helicopter` never reaches an executor.
+
+### Every number is sourced or labelled
+
+Readings carry their provenance — water drawn from a fossil aquifer, not
+rainfall, is labelled as non-renewable. The telemetry is simulated, and the
+dashboard says so above the fold. I would rather be argued with than believed.
+
+### Built to be pointed at the real thing
+
+The twin is disposable. The tool boundary is the asset. Point Aidustrial at real
+site telemetry and nothing else in the stack has to change.
+
+---
+
+## Why Algeria, why now
+
+Adrar is the sharpest version of a national problem: Algeria is investing in
+food security on water that does not refill. The operators who will run these
+sites are being hired now, before the telemetry exists. Aidustrial is designed
+for that window. It makes the water cost visible, forces the trade-off to a
+person, and leaves an audit trail. The same pattern applies to any large
+irrigated agri-industrial site in North Africa.
+
+## Who it is for
+
+**Operations directors and plant managers running large industrial sites who
+want autonomous agents but cannot accept an opaque system making irreversible
+calls.**
+
+Specifically:
+
+- **Large agri-industrial operations** — mega-dairies, feedlots, integrated crop
+  and livestock complexes — where several specialist domains run at once and the
+  coordination cost between them is the real failure mode.
+- **Teams that already tried dashboards** and found that a wall of numbers is not
+  a decision, and the decision is still a person's whole job.
+- **Regulated or high-consequence environments** where an action must be
+  attributable, reversible and auditable — cooling sheds, water allocation,
+  animal welfare, machinery dispatch.
+- **Operators standing up a new site** where telemetry does not exist yet. Aidustrial
+  runs on a simulated twin dimensioned from published parameters, so the agents
+  and the governance layer are proven before the collars and load cells arrive.
+
+The promise is narrow and deliberate: **the agents do the watching and the
+reasoning. The human keeps the authority.** That is not a limitation the design
+works around — it is the product.
+
+---
+
+*Aidustrial — seven specialists, one human gate.*
+
+---
+
+© 2026 Mohammed Boukaba. All rights reserved. · [mohammed@pullrun.dev](mailto:mohammed@pullrun.dev)

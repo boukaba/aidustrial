@@ -332,6 +332,15 @@ export default function Command() {
             </button>{" "}
             for how the system works.
           </p>
+          <p className="mt-2 text-[10px] text-slate-700">
+            © 2026 Mohammed Boukaba. All rights reserved.{" "}
+            <a
+              href="mailto:mohammed@pullrun.dev"
+              className="text-slate-600 underline decoration-dotted underline-offset-2"
+            >
+              mohammed@pullrun.dev
+            </a>
+          </p>
         </footer>
       </main>
 
