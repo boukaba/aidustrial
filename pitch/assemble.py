@@ -34,6 +34,47 @@ FFMPEG = subprocess.run(
 #: this machine: a 675px-tall window has a 32px bar.
 TITLE_BAR_RATIO = 32 / 675
 
+
+#: Container metadata. YouTube reads title and description from the upload
+#: form, not the file, but platforms and archives that read the container get
+#: the same story, and it survives re-uploads. faststart moves the index to
+#: the front so the file streams instead of downloading whole.
+META = {
+    "title": "Aidustrial: an agentic operations layer for large industrial farms",
+    "artist": "Mohammed Boukaba",
+    "author": "Mohammed Boukaba",
+    "composer": "Mohammed Boukaba",
+    "copyright": "\u00a9 2026 Mohammed Boukaba. All rights reserved.",
+    "date": "2026",
+    "genre": "Technology",
+    "comment": (
+        "Seven specialist AI Agents run a dairy complex around the clock against a "
+        "live digital twin, and stop at a human gate before anything consequential. "
+        "Built around a simulated site in Adrar, dimensioned from Baladna's published "
+        "figures. Contact: mohammed@pullrun.dev"
+    ),
+    "description": (
+        "Aidustrial is an agentic operations layer for large industrial farms. Seven "
+        "specialist AI Agents work 24/7, deciding in under a second and escalating "
+        "consequential decisions to humans with the evidence, the blast radius and the "
+        "cost of doing nothing. Each AI Agent answers from its live readings, a cited "
+        "document corpus and its own decision history. The demo runs on a simulated "
+        "dairy complex in Adrar, Algerian Sahara, dimensioned from published Baladna "
+        "figures; it is not affiliated with Baladna. Presenter: Mohammed Boukaba."
+    ),
+    "keywords": (
+        "Aidustrial, AI Agents, multi-agent systems, human-in-the-loop, HITL, agentic AI, "
+        "digital twin, RAG, retrieval augmented generation, industrial automation, "
+        "dairy farming, precision agriculture, Baladna, Adrar, Algeria, LangGraph, "
+        "FastAPI, Next.js, Jev, DeepSeek"
+    ),
+    "synopsis": (
+        "Seven AI Agents run a large farm around the clock and stop at a human gate "
+        "before anything consequential."
+    ),
+    "encoder": "Aidustrial pitch pipeline",
+}
+
 ASS_HEADER = """[Script Info]
 ScriptType: v4.00+
 PlayResX: 1920
@@ -167,8 +208,16 @@ def main() -> None:
     concat = OUT / "_concat.txt"
     concat.write_text("".join(f"file '{p.name}'\n" for p in beat_files))
     final = ROOT / "aidustrial_pitch.mp4"
+    meta_args: list[str] = []
+    for k, v in META.items():
+        meta_args += ["-metadata", f"{k}={v}"]
+
     _run([FFMPEG, "-v", "error", "-y", "-f", "concat", "-safe", "0",
-          "-i", "_concat.txt", "-c", "copy", str(final)], cwd=OUT)
+          "-i", "_concat.txt", "-c", "copy",
+          # use_metadata_tags keeps the non-standard keys (description,
+          # synopsis, keywords) instead of silently dropping them.
+          "-movflags", "use_metadata_tags+faststart",
+          *meta_args, str(final)], cwd=OUT)
     concat.unlink()
     print(f"[asm] final: {final}  ({_duration(final):.2f}s)")
 
