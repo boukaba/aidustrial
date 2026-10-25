@@ -1,25 +1,73 @@
-MIT License
-
 Copyright (c) 2026 Mohammed Boukaba <mohammed@pullrun.dev>
+All rights reserved.
 
-The MIT grant below covers the source code in this repository. The project
-name "Aidustrial", its logo and all written and media material are
-copyright (c) 2026 Mohammed Boukaba, all rights reserved.
+SOURCE-AVAILABLE EVALUATION LICENCE
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This repository is published so that judges and reviewers of the Thirduni
+Cohort 1 programme can read the source, verify authorship, and run the
+project locally in order to evaluate it. That is the whole of the purpose
+for which it is made available.
+
+
+PERMISSION IS GRANTED, FREE OF CHARGE, TO:
+
+  a) read, clone and inspect this source code;
+
+  b) run the project locally, or in your own environment, solely for the
+     purpose of evaluation and review;
+
+  c) quote short excerpts in a review, report or assessment, provided the
+     author and this repository are attributed.
+
+
+NO OTHER RIGHTS ARE GRANTED.
+
+
+WITHOUT THE PRIOR WRITTEN PERMISSION OF THE COPYRIGHT HOLDER, YOU MAY NOT:
+
+  a) use this code, in whole or in part, in any product, service or
+     deployed system;
+
+  b) copy, reproduce, modify, adapt, translate or create derivative works
+     from it;
+
+  c) distribute, publish, sublicense, rent, lease or sell it, or make it
+     available to any third party;
+
+  d) use it for any commercial purpose, or in production, or to provide a
+     service to others;
+
+  e) use it, or any part of it, as training data for any machine-learning
+     model.
+
+
+TRADEMARKS AND BRAND
+
+No rights are granted to the name "Aidustrial", the Aidustrial logo, or any
+associated marks. Those remain the exclusive property of the copyright
+holder. All rights reserved.
+
+
+NO WARRANTY
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
+
+
+THIRD-PARTY COMPONENTS
+
+This project depends on third-party open-source libraries, which remain under
+their own licences. Those licences are unaffected by this notice and are
+listed in `agent/pyproject.toml`, `agent/uv.lock`, `dashboard/package.json`
+and `dashboard/pnpm-lock.yaml`.
+
+
+ENQUIRIES
+
+Licensing, partnership or permission requests: mohammed@pullrun.dev

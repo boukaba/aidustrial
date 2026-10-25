@@ -276,10 +276,19 @@ operations director trusts enough to use on a real shift.
 
 ## Licence and copyright
 
-**Source code:** MIT. See [`LICENSE`](LICENSE).
+**Source-available, not open source.** The repository is public so that judges
+and reviewers can read the code, verify authorship and run it to evaluate it.
+That is the only purpose licensed. See [`LICENSE`](LICENSE) for the exact terms.
 
-**Everything else** — the name "Aidustrial", the logo, the documentation, the
-pitch deck and the demo video — copyright © 2026 Mohammed Boukaba.
-**All rights reserved.**
+In short, you may read, clone, inspect and run this project for evaluation, and
+quote short excerpts with attribution. You may **not** use it in a product or
+service, modify or redistribute it, use it commercially, or train models on it
+without written permission.
 
-Contact: [mohammed@pullrun.dev](mailto:mohammed@pullrun.dev)
+The name "Aidustrial", the logo, the documentation, the pitch deck and the demo
+video are copyright © 2026 Mohammed Boukaba. **All rights reserved.**
+
+Third-party libraries keep their own licences — see `agent/pyproject.toml`,
+`agent/uv.lock` and `dashboard/package.json`.
+
+Permissions and enquiries: [mohammed@pullrun.dev](mailto:mohammed@pullrun.dev)
