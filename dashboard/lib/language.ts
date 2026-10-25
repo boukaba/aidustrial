@@ -13,6 +13,7 @@
 export const NAV = [
   { id: "home", icon: "🏠", label: "What's happening", sub: "One screen" },
   { id: "agents", icon: "🤖", label: "Agents at work", sub: "Watch them think" },
+  { id: "orchestrator", icon: "🎛", label: "The orchestrator", sub: "Who wakes, and when" },
   { id: "crop", icon: "🌾", label: "Cow food", sub: "Fields and water" },
   { id: "livestock", icon: "🐄", label: "The herd", sub: "Cows and calves" },
   { id: "milk", icon: "🥛", label: "The milk", sub: "Milking and quality" },

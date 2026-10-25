@@ -101,7 +101,7 @@ function AgentsTab({ d }: { d: StreamMessage }) {
 
 /* ------------------------------------------------------------ ORCHESTRATOR */
 
-function OrchestratorTab({ d }: { d: StreamMessage }) {
+export function OrchestratorTab({ d, wide = false }: { d: StreamMessage; wide?: boolean }) {
   const o = d.orchestration ?? {
     converged: true,
     messages: 0,
@@ -152,7 +152,7 @@ function OrchestratorTab({ d }: { d: StreamMessage }) {
 
       <div>
         <div className="label mb-2">Dispatch — why each specialist woke</div>
-        <div className="max-h-[220px] space-y-1.5 overflow-y-auto">
+        <div className={`${wide ? "max-h-[420px]" : "max-h-[220px]"} space-y-1.5 overflow-y-auto`}>
           {d.trace
             .filter((t) => t.phase === "triage")
             .slice(-6)
@@ -548,12 +548,14 @@ export function ControlPanel({
         {!open && (
           <button
             onClick={onToggle}
-            aria-label="Open control panel"
-            className="flex items-center gap-2 rounded-l-lg border border-r-0 border-sig-500/40 bg-ink-900/95 px-3 py-4 text-sig-400 shadow-xl backdrop-blur transition hover:bg-ink-800"
+            aria-label="Open the operations panel"
+            title="Open the operations panel — orchestrator, HITL, tool calls"
+            className="flex items-center gap-2 rounded-l-lg border border-r-0 border-sig-500/60 bg-ink-800/95 px-2.5 py-5 text-sig-300 shadow-2xl shadow-black/40 backdrop-blur transition hover:bg-ink-700 hover:text-sig-200"
             style={{ writingMode: "vertical-rl" }}
           >
-            <span className="text-sm">⚙</span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Control</span>
+            <span className="text-[15px]">⚙</span>
+            <span className="text-[10.5px] font-bold uppercase tracking-[0.22em]">Panel</span>
+            <span className="text-sm leading-none">‹</span>
             {pendingCount > 0 && (
               <span className="h-2 w-2 rounded-full bg-fuchsia-500" />
             )}
