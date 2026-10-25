@@ -140,7 +140,7 @@ specialist industry: energy, manufacturing, logistics.
 
 | Criterion | What the submission shows | Gap to be honest about |
 |---|---|---|
-| Problem and insight | A specific site, a specific constraint, a coordination problem | No operator interviews yet; say so and describe the validation plan |
+| Problem and insight | A specific site, a specific constraint, a coordination problem | The constraint comes from published figures |
 | Working product | The human gate works end to end; reject does not mutate the world | The farm is simulated; the reasoning backend is optional |
 | Technical execution | README, architecture, 104 tests, provenance, tool boundary | Known gaps are documented in the README |
 | Impact and viability | A narrow user, a pilot plan, a reason to continue | No signed pilot yet; the next step is one operator |

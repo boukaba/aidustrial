@@ -258,8 +258,6 @@ operations director trusts enough to use on a real shift.
 ## Known gaps
 
 - The twin is a simulation, not a validated agronomic model.
-- No operator interviews yet. The next step is validation with people who
-  actually run large farms in Algeria.
 - The reasoning layer depends on external models; the deterministic rules and
   the gate do not.
 - The public demo has no authentication or rate limiting yet. It is a
