@@ -417,53 +417,60 @@
       "nav": "Agents at work",
       "actions": [
         {
-          "at": 0,
-          "do": "move",
-          "target": "What's happening"
-        },
-        {
-          "at": 2,
+          "at": 0.0,
           "do": "scrollTo",
           "y": 0
         },
         {
-          "at": 6,
+          "at": 3.0,
           "do": "move",
           "target": "deciding via"
         },
         {
-          "at": 10,
-          "do": "scroll",
-          "dy": 200,
-          "steps": 5
+          "at": 8.0,
+          "do": "move",
+          "target": "writing via"
         },
         {
-          "at": 15,
+          "at": 13.0,
+          "do": "scroll",
+          "dy": 220,
+          "n": 7
+        },
+        {
+          "at": 22.0,
           "do": "scrollTo",
           "y": 0
         },
         {
-          "at": 19,
+          "at": 28.0,
           "do": "move",
-          "target": "Agents at work"
+          "target": "The seven specialists, working"
+        },
+        {
+          "at": 34.0,
+          "do": "scrollTo",
+          "y": 9999
+        },
+        {
+          "at": 40.0,
+          "do": "scrollTo",
+          "y": 0
         }
       ],
       "phrases": [
         "So what happens next?",
-        "Over the next three months we move onto one real barn group at Adrar,",
-        {
-          "text": "wiring the tool boundary to live telemetry and the laboratory systems.",
-          "say": "wiring the tool boundary to real-time telemetry and the laboratory systems."
-        },
-        "Then reinforcement learning: the logged decisions",
-        "become a dispatch policy",
-        "that improves on what the AI Agents choose today.",
-        "Four weeks in shadow mode first, every decision logged beside the human's.",
-        "Success is one number: decisions made earlier than they are today.",
-        {
-          "text": "Thank you. The live demo and the code are on GitHub.",
-          "say": "Thank you. The demo and the code are on GitHub."
-        }
+        "Three months: one real barn group at Adrar,",
+        "live telemetry and the lab feeds,",
+        "four weeks in shadow mode.",
+        "Behind it, the industrial hardening \u2014",
+        "PostgreSQL, multi-tenant access,",
+        "structured audit logging, and Neo4j for the knowledge graph.",
+        "Then reinforcement learning on real logs.",
+        "The core is built. This is the last mile.",
+        "And we would like an introduction to Baladna.",
+        "The same architecture fits any specialist industry.",
+        "Thank you. The demo and the code are on GitHub."
       ]
     }
   ]

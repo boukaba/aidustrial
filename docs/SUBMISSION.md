@@ -104,15 +104,16 @@ not claim otherwise.
 
 ## 8. What happens next (max 100 words)
 
-Three months, one real barn group at Adrar. We take Aidustrial off the twin and
-onto live telemetry — pivots, silos, herd vitals — and onto the laboratory
-systems already producing food, water and milk results daily. Then four weeks in
-shadow mode: seven AI Agents beside the existing team, every decision logged next
-to the human's. After that we open the gate for real and start reinforcement
-learning on those logs. Success is one number: decisions made earlier than today.
-The next step is a real site, not another prototype.
+Three months: take Aidustrial off the twin and onto one real barn group — live
+telemetry, lab feeds, four weeks in shadow mode with every AI Agent decision
+logged beside the human's. Behind it, production hardening: PostgreSQL replacing
+SQLite, row-level multi-tenant isolation, structured logging with audit
+retention, and Neo4j for the cross-domain knowledge graph — everything a serious
+industrial deployment expects. The core is already built; this is the last mile.
+Then we would like an introduction to Baladna. The same architecture fits any
+specialist industry: energy, manufacturing, logistics.
 
-*(91 words.)*
+*(89 words.)*
 
 ---
 
