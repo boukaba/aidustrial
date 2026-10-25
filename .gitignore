@@ -18,3 +18,7 @@ aidustrial_logo*.png
 pitch/
 
 tsconfig.tsbuildinfo
+
+# SQLite ledger written at runtime
+agent/data/
+data/
