@@ -172,8 +172,8 @@ Configuration and the full safety argument are in
 
 **Real:** the Adrar site, its published parameters, the supplier list, the
 non-renewable Albien aquifer constraint, the NRC heat-stress thresholds, and the
-coordination problem. The public-data research is in
-[`BALADNA_ALGERIA_DOSSIER.md`](BALADNA_ALGERIA_DOSSIER.md).
+coordination problem. Those figures come from public sources, each tagged with
+its provenance in [`docs/DATA_PROVENANCE.md`](docs/DATA_PROVENANCE.md).
 
 **Simulated:** every telemetry reading, the 51,548-animal herd state, crop
 growth, silo inventory, tanker positions and the weather. The site has **no

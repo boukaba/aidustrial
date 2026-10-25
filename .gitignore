@@ -22,3 +22,6 @@ tsconfig.tsbuildinfo
 # SQLite ledger written at runtime
 agent/data/
 data/
+
+# Research dossier: kept locally, not published
+BALADNA_ALGERIA_DOSSIER.md
