@@ -237,9 +237,7 @@ Built for **Thirduni Cohort 1, October 2026**.
 ## Live demo and walkthrough
 
 The repository includes a one-container build for deploying the app on a single
-public URL ([`docs/DEPLOY.md`](docs/DEPLOY.md)). The three-minute screen-recorded
-walkthrough, the primary demo for judging, is scripted in
-[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md).
+public URL ([`docs/DEPLOY.md`](docs/DEPLOY.md)).
 
 ## What happens next
 
@@ -264,7 +262,6 @@ operations director trusts enough to use on a real shift.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), layer-by-layer design
 - [`docs/DATA_PROVENANCE.md`](docs/DATA_PROVENANCE.md), sourced vs assumed
 - [`docs/PITCH.md`](docs/PITCH.md), the longer project narrative
-- [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md), the three-minute walkthrough
 - [`docs/DEPLOY.md`](docs/DEPLOY.md), one-container deployment
 - [`AGENT.md`](AGENT.md), working notes and the build history
 
