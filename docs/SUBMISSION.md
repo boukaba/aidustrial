@@ -142,14 +142,14 @@ specialist industry: energy, manufacturing, logistics.
 |---|---|---|
 | Problem and insight | A specific site, a specific constraint, a coordination problem | No operator interviews yet; say so and describe the validation plan |
 | Working product | The human gate works end to end; reject does not mutate the world | The farm is simulated; the reasoning backend is optional |
-| Technical execution | README, architecture, 88 tests, provenance, tool boundary | Known gaps are documented in the README |
+| Technical execution | README, architecture, 104 tests, provenance, tool boundary | Known gaps are documented in the README |
 | Impact and viability | A narrow user, a pilot plan, a reason to continue | No signed pilot yet; the next step is one operator |
 | Story and demo | Three-minute script opens with the product and shows a real decision | Record it, keep it unlisted, check it logged out |
 
 ## Before you submit
 
 - [ ] Repository is **public**; README opens without errors.
-- [ ] `uv run pytest tests/ -q` passes (88 tests).
+- [ ] `uv run pytest tests/ -q` passes (104 tests).
 - [ ] Dashboard runs from a fresh clone with the two commands in the README.
 - [ ] Live URL works in a private window, logged out, on 30 October.
 - [ ] Video is **unlisted** (not private), 2-4 minutes, audio audible, screen
