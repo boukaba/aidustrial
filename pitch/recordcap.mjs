@@ -217,6 +217,19 @@ async function record(beatId) {
   const page = browser.contexts()[0].pages()[0];
   await page.waitForTimeout(2200);
 
+  // Refuse to record a page that did not load. A stopped backend produces
+  // Chrome's "This site can't be reached" page, which records perfectly
+  // happily and only shows up as a white hole in the finished film.
+  const title = await page.title().catch(() => "");
+  const hasApp = await page.locator("nav[aria-label='Main']").count();
+  if (!/aidustrial|adrar/i.test(title) || !hasApp) {
+    await browser.close().catch(() => {});
+    chrome.kill();
+    throw new Error(
+      `page did not load (title=${JSON.stringify(title)}). Is the server on ${BASE} running?`,
+    );
+  }
+
   const nav = page.locator('button, a').filter({ hasText: NAV_LABEL[beatId] }).first();
   if (await nav.count()) await nav.click().catch(() => {});
   await page.waitForTimeout(2600);
